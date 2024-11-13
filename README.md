@@ -5,15 +5,15 @@ While this library will strive to eventually reach feature parity with the C++ S
 follow the same patterns.
 
 ## Getting Started
-Lots of starter information can be found in [The Rust on ESP Book](https://docs.esp-rs.org/book/)
+Lots of starter information can be found in [The Rust on ESP Book](https://docs.esp-rs.org/book/).  You will need to install 
+a toolchain for the `xtensa-esp32-none-elf` target.  This is a `std` project, not `no-std`, so the full standard library is
+at your disposal.
 
 Build all targets:
 `cargo build`
 
 Run the example on an ESP32: `cargo run --bin example`
 
-### Setup
-https://esp-rs.github.io/book/
+Or simply (while only one binary exists): `cargo run`
 
-### Run
-`cargo run`
+Eventually, `cargo test` will also do something.  Today is not that day.
