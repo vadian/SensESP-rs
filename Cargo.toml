@@ -1,5 +1,5 @@
 [package]
-name = "sensesp-rs"
+name = "SensESP-rs"
 version = "0.1.0"
 authors = ["Carl Middleton <dev@carlcodes.com>"]
 edition = "2021"
@@ -11,7 +11,7 @@ name = "sensesp"
 path = "src/lib/lib.rs"
 
 [[bin]]
-name = "sensesp-rs-template"
+name = "example"
 path = "src/examples/main.rs"
 
 [profile.release]
