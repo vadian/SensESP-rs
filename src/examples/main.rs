@@ -2,8 +2,8 @@ use anyhow::{bail, Result};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
 use log::info;
-use sensesp::wifi::wifi::wifi;
-use sensesp::rgbled::rgbled::{RGB8, WS2812RMT};
+use sensesp::rgbled::{RGB8, WS2812RMT};
+use sensesp::wifi::wifi;
 use toml_cfg::toml_config;
 
 #[derive(Debug)]
