@@ -28,6 +28,10 @@ path = "src/examples/ssd1306-oled.rs"
 name = "oled-bus"
 path = "src/examples/ssd1306-oled-bus.rs"
 
+[[bin]]
+name = "test"
+path = "src/lib/test.rs"
+
 [profile.release]
 opt-level = "s"
 
