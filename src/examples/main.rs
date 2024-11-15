@@ -2,14 +2,13 @@ use std::time::Duration;
 
 use anyhow::{bail, Result};
 use bmp180_driver::{Common, Resolution, BMP180};
+use esp_idf_hal::i2c::APBTickType;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::hal::gpio::Level;
-use esp_idf_svc::hal::prelude::Peripherals;
+use esp_idf_svc::hal::prelude::{Hertz, Peripherals};
 use sensesp::wifi::wifi;
 use toml_cfg::toml_config;
 
 use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::PinDriver;
 use esp_idf_svc::hal::i2c::config;
 use esp_idf_svc::hal::i2c::I2cDriver;
 
@@ -36,32 +35,32 @@ fn main() -> Result<()> {
     let sda = peripherals.pins.gpio21;
     let scl = peripherals.pins.gpio22;
 
-    let power = peripherals.pins.gpio2;
-    let mut power = PinDriver::output(power)?;
-    power.set_high()?;
-
-    let led = peripherals.pins.gpio15;
-    let mut led = PinDriver::output(led)?;
-    led.set_high()?;
     std::thread::sleep(std::time::Duration::from_secs(1));
     log::info!("Initializing I2C...");
 
+    let config = config::Config::default()
+        .baudrate(Hertz(9600))
+        .scl_enable_pullup(false)
+        .sda_enable_pullup(false)
+        .timeout(APBTickType::from(Duration::from_millis(10)));
+    log::info!("{:?}", &config);
+
     // Initialize I2C driver
-    let i2c = I2cDriver::new(peripherals.i2c0, sda, scl, &config::Config::default())?;
+    let i2c = I2cDriver::new(peripherals.i2c0, sda, scl, &config)?;
 
     log::info!("Creating Barometer...");
     // Create BMP180 sensor instance
     let mut sensor = BMP180::new(i2c, FreeRtos);
 
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
     // Check connection to the sensor
     log::info!("Checking connection...");
     loop {
-        led.set_high()?;
         match sensor.check_connection() {
             Ok(_) => break,
             Err(err) => {
                 log::warn!("Could not connect to I2C: {:?}", err);
-                led.set_low()?;
                 std::thread::sleep(Duration::from_secs(1));
             }
         }
@@ -88,13 +87,11 @@ fn main() -> Result<()> {
     ) {
         Ok(inner) => inner,
         Err(err) => {
-            led.set_low()?;
             bail!("Could not connect to Wi-Fi network: {:?}", err)
         }
     };
 
     loop {
-        led.set_high()?;
         // Wait...
         std::thread::sleep(std::time::Duration::from_secs(1));
         let (temperature, pressure, altitude) = sensor.read_all(Resolution::UltraHighResolution)?;
@@ -103,7 +100,6 @@ fn main() -> Result<()> {
         println!("Pressure: {} Pa", pressure);
         println!("Altitude: {} meters", altitude);
 
-        led.set_low()?;
         // Wait...
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
