@@ -15,6 +15,12 @@ cargo install espup
 espup install
 ```
 
+### Installing the flash utils (standalone and cargo bindings)
+```
+cargo install espflash
+cargo install cargo-espflash
+```
+
 ### WSL
 To expose the serial port to WSL, `usbipd` must be used to forward the port.  See this [guide](https://developer.espressif.com/blog/espressif-devkits-with-wsl2/).  There is also a vscode extension, [USBIP Connect](https://marketplace.visualstudio.com/items?itemName=thecreativedodo.usbip-connect).
 
