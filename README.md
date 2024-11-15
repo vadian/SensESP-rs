@@ -9,6 +9,12 @@ Lots of starter information can be found in [The Rust on ESP Book](https://docs.
 a toolchain for the `xtensa-esp32-none-elf` target.  This is a `std` project, not `no-std`, so the full standard library is
 at your disposal.
 
+### Installing the Espressif Rust Ecosystem
+```
+cargo install espup
+espup install
+```
+
 ### WSL
 To expose the serial port to WSL, `usbipd` must be used to forward the port.  See this [guide](https://developer.espressif.com/blog/espressif-devkits-with-wsl2/).  There is also a vscode extension, [USBIP Connect](https://marketplace.visualstudio.com/items?itemName=thecreativedodo.usbip-connect).
 
