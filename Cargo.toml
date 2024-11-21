@@ -15,6 +15,10 @@ name = "example"
 path = "src/examples/main.rs"
 
 [[bin]]
+name = "accelerometer"
+path = "src/examples/mpu6050.rs"
+
+[[bin]]
 name = "scanner"
 path = "src/examples/scanner.rs"
 
@@ -56,6 +60,7 @@ embedded-graphics = "0.8.1"
 embedded-hal-async = "1.0.0-rc.2"
 embedded-hal-bus = { version = "0.2.0", features = ["std", "async"] }
 shared-bus = "0.3.1"
+mpu6050 = "0.1.6"
 
 [build-dependencies]
 embuild = "0.32.0"
