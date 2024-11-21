@@ -37,6 +37,6 @@ Build all targets:
 
 Run the example on an ESP32: `cargo run --bin example`
 
-Or simply (while only one binary exists): `cargo run`
+Run the I2C scanner: `cargo run --bin scanner`
 
 Eventually, `cargo test` will also do something.  Today is not that day.

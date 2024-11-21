@@ -14,6 +14,10 @@ path = "src/lib/lib.rs"
 name = "example"
 path = "src/examples/main.rs"
 
+[[bin]]
+name = "scanner"
+path = "src/examples/scanner.rs"
+
 [profile.release]
 opt-level = "s"
 
