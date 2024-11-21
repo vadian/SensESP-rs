@@ -18,6 +18,10 @@ path = "src/examples/main.rs"
 name = "scanner"
 path = "src/examples/scanner.rs"
 
+[[bin]]
+name = "oled"
+path = "src/examples/ssd1306-oled.rs"
+
 [profile.release]
 opt-level = "s"
 
@@ -43,6 +47,9 @@ toml-cfg    = "=0.1.3"
 rgb         = "0.8.29"
 embedded-hal = "1.0.0"
 display-interface = "0.5.0"
+ssd1306 = "0.8.4"
+embedded-graphics = "0.8.1"
+embedded-hal-async = "1.0.0-rc.2"
 
 [build-dependencies]
 embuild = "0.32.0"
