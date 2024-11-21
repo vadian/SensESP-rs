@@ -308,7 +308,6 @@ fn main() -> Result<()> {
                 }
             }
         } else {
-            
             match i2c.write_read(addr, &[0], &mut buf, 100) {
                 Ok(_) => {
                     println!("Found Address {:#02x}", addr as u8);
