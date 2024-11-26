@@ -9,7 +9,7 @@ use anyhow::Result;
 use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::prelude::Peripherals;
 use sensesp::application::Application;
-use sensesp::sensor::{AttachableSensor, ConstantSensor, DigitalSensor};
+use sensesp::sensor::{Attachable, ConstantSensor, TimedSensor};
 use smol::stream::StreamExt;
 use toml_cfg::toml_config;
 
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     let digital_input = PinDriver::input(peripherals.pins.gpio18)?;
 
     //bool sensor maps from Level enums
-    let mut digital_sensor = DigitalSensor::new(
+    let mut digital_sensor = TimedSensor::new(
         move || match digital_input.get_level() {
             esp_idf_hal::gpio::Level::Low => true,
             esp_idf_hal::gpio::Level::High => false,

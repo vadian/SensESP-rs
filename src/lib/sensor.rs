@@ -1,11 +1,11 @@
 use eyeball::{shared::Observable, Subscriber};
 use std::time::{Duration, SystemTime};
 
-pub trait Sensor {
+pub trait SensESPSensor {
     fn tick(&mut self);
 }
 
-pub trait AttachableSensor<T> {
+pub trait Attachable<T> {
     fn attach(&mut self) -> Subscriber<T>;
 }
 
@@ -29,7 +29,7 @@ impl<T: Copy> ConstantSensor<T> {
     }
 }
 
-impl<T: Copy> Sensor for ConstantSensor<T> {
+impl<T: Copy> SensESPSensor for ConstantSensor<T> {
     fn tick(&mut self) {
         let now = SystemTime::now();
 
@@ -47,13 +47,13 @@ impl<T: Copy> Sensor for ConstantSensor<T> {
     }
 }
 
-impl<T: Copy> AttachableSensor<T> for ConstantSensor<T> {
+impl<T: Copy> Attachable<T> for ConstantSensor<T> {
     fn attach(&mut self) -> Subscriber<T> {
         self.observable.subscribe()
     }
 }
 
-pub struct DigitalSensor<T, F>
+pub struct TimedSensor<T, F>
 where
     T: Copy,
     F: Fn() -> T,
@@ -64,7 +64,7 @@ where
     func: F,
 }
 
-impl<T, F> DigitalSensor<T, F>
+impl<T, F> TimedSensor<T, F>
 where
     T: Copy,
     F: Fn() -> T,
@@ -73,7 +73,7 @@ where
         let val = func();
         let observable = Observable::new(val.to_owned());
         let last_measurement = SystemTime::now() - duration;
-        DigitalSensor::<T, F> {
+        TimedSensor::<T, F> {
             observable,
             func,
             duration,
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl<T, F> AttachableSensor<T> for DigitalSensor<T, F>
+impl<T, F> Attachable<T> for TimedSensor<T, F>
 where
     T: Copy,
     F: Fn() -> T,
@@ -92,7 +92,7 @@ where
     }
 }
 
-impl<T, F> Sensor for DigitalSensor<T, F>
+impl<T, F> SensESPSensor for TimedSensor<T, F>
 where
     T: Copy,
     F: Fn() -> T,

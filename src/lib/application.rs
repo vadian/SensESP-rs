@@ -1,7 +1,7 @@
-use crate::sensor::Sensor;
+use crate::sensor::SensESPSensor;
 
 pub struct Application {
-    sensors: Vec<Box<dyn Sensor>>,
+    sensors: Vec<Box<dyn SensESPSensor>>,
 }
 
 impl Application {
@@ -10,7 +10,7 @@ impl Application {
             sensors: Vec::new(),
         }
     }
-    pub fn register(mut self, s: impl Sensor + 'static) -> Self {
+    pub fn register(mut self, s: impl SensESPSensor + 'static) -> Self {
         self.sensors.push(Box::new(s));
         self
     }
