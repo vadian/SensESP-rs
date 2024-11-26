@@ -1,16 +1,16 @@
 use crate::sensor::Sensor;
 
-pub struct Application<T> {
-    sensors: Vec<Box<dyn Sensor<T>>>,
+pub struct Application {
+    sensors: Vec<Box<dyn Sensor>>,
 }
 
-impl<T> Application<T> {
+impl Application {
     pub fn new() -> Self {
         Application {
             sensors: Vec::new(),
         }
     }
-    pub fn register(mut self, s: impl Sensor<T> + 'static) -> Self {
+    pub fn register(mut self, s: impl Sensor + 'static) -> Self {
         self.sensors.push(Box::new(s));
         self
     }
