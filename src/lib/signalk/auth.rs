@@ -37,7 +37,7 @@ pub struct AccessRequest {
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Deserialize)]
-enum Permission {
+pub enum Permission {
     APPROVED,
     DENIED,
 }
@@ -47,198 +47,6 @@ enum Permission {
 enum DeviceAccessState {
     COMPLETED,
     PENDING,
-}
-
-fn post_access_request(
-    client: &mut HttpClient<EspHttpConnection>,
-    server_root: &str,
-) -> Result<DeviceAccessResponse> {
-    let payload: DeviceAccessRequest = DeviceAccessRequest {
-        clientId: "31337-400432-6317832".to_string(),
-        description: "Basic SensESP-rs Sensor example".to_string(),
-    };
-
-    let json = match serde_json::to_string(&payload) {
-        Ok(s) => s,
-        Err(e) => return Err(anyhow!(e)),
-    };
-
-    let url = format!("http://{}/signalk/v1/access/requests", server_root);
-
-    let content_length_header: String = format!("{}", json.len());
-
-    let headers = [
-        ("content-type", "application/json"),
-        ("content-length", content_length_header.as_str()),
-    ];
-
-    // Send request
-    let mut request = client.post(&url, &headers)?;
-    request.write_all(json.as_bytes())?;
-    request.flush()?;
-    info!("-> POST {}", url);
-    let mut response = request.submit()?;
-
-    // Process response
-    let status = response.status();
-    info!("<- {}", status);
-
-    match status {
-        202 | 400 => {
-            info!("Successfully submitted request.");
-            status
-        }
-        404 => {
-            info!("404? I think that's a completed but pending connection");
-            404
-        }
-        501 => return Err(anyhow!("Oh no! The server does not support device auth.")),
-        _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
-    };
-
-    let mut buf = [0u8; 1024];
-    let bytes_read = io::try_read_full(&mut response, &mut buf).map_err(|e| e.0)?;
-    info!("Read {} bytes", bytes_read);
-    let body_string = match std::str::from_utf8(&buf[0..bytes_read]) {
-        Ok(body_string) => {
-            info!(
-                "Response body (truncated to {} bytes): {:?}",
-                buf.len(),
-                &body_string
-            );
-            body_string
-        }
-        Err(e) => {
-            error!("Error decoding response body: {}", e);
-            return Err(anyhow!(e));
-        }
-    };
-
-    let response: DeviceAccessResponse = serde_json::from_str(body_string)?;
-
-    Ok(response)
-}
-
-fn get_access_request_status(
-    client: &mut HttpClient<EspHttpConnection>,
-    server_root: &str,
-    href: &str,
-) -> Result<DeviceAccessResponse> {
-    let url = format!("http://{}{}", server_root, href);
-
-    // Send request
-    let request = client.get(&url)?;
-    info!("-> GET {}", url);
-    let mut response = request.submit()?;
-
-    // Process response
-    let status = response.status();
-    info!("<- {}", status);
-
-    match status {
-        200 => {
-            info!("Connection pending, status request received");
-            status
-        }
-        404 => {
-            info!("404? I think that's a completed but pending connection");
-            404
-        }
-        501 => return Err(anyhow!("Oh no! The server does not support device auth.")),
-        _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
-    };
-
-    let mut buf = [0u8; 1024];
-    let bytes_read = io::try_read_full(&mut response, &mut buf).map_err(|e| e.0)?;
-    info!("Read {} bytes", bytes_read);
-    let body_string = match std::str::from_utf8(&buf[0..bytes_read]) {
-        Ok(body_string) => {
-            info!(
-                "Response body (truncated to {} bytes): {:?}",
-                buf.len(),
-                &body_string
-            );
-            body_string
-        }
-        Err(e) => {
-            error!("Error decoding response body: {}", e);
-            return Err(anyhow!(e));
-        }
-    };
-
-    let response: DeviceAccessResponse = serde_json::from_str(body_string)?;
-
-    Ok(response)
-}
-
-fn validate_token(
-    client: &mut HttpClient<EspHttpConnection>,
-    server_root: &str,
-    token: &str,
-) -> Result<DeviceAccessResponse> {
-    let url = format!("http://{}/signalk/v1/auth/validate", server_root);
-
-    let bearer = format!("Bearer {}", token);
-
-    let content = "";
-    let content_length_header: String = format!("{}", content.len());
-
-    let headers = [
-        ("content-type", "application/json"),
-        ("content-length", content_length_header.as_str()),
-        ("authorization", bearer.as_str()),
-    ];
-
-    // Send request
-    let mut request = client
-        .post(&url, &headers)
-        .map_err(|e| anyhow!("Error creating HTTP Request: {:?}", e))?;
-    request.write_all(content.as_bytes())?;
-    request.flush()?;
-    info!("-> POST {}", url);
-
-    let mut response = request
-        .submit()
-        .map_err(|e| anyhow!("Error submitting HTTP Request: {:?}", e))?;
-
-    // Process response
-    let status = response.status();
-    info!("<- {}", status);
-
-    match status {
-        200 => {
-            info!("Connection pending, status request received");
-            status
-        }
-        404 => {
-            info!("404? I think that's a completed but pending connection");
-            404
-        }
-        501 => return Err(anyhow!("Oh no! The server does not support device auth.")),
-        _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
-    };
-
-    let mut buf = [0u8; 1024];
-    let bytes_read = io::try_read_full(&mut response, &mut buf).map_err(|e| e.0)?;
-    info!("Read {} bytes", bytes_read);
-    let body_string = match std::str::from_utf8(&buf[0..bytes_read]) {
-        Ok(body_string) => {
-            info!(
-                "Response body (truncated to {} bytes): {:?}",
-                buf.len(),
-                &body_string
-            );
-            body_string
-        }
-        Err(e) => {
-            error!("Error decoding response body: {}", e);
-            return Err(anyhow!(e));
-        }
-    };
-
-    let response: DeviceAccessResponse = serde_json::from_str(body_string)?;
-
-    Ok(response)
 }
 
 pub(crate) fn get_token(server_root: &str) -> Result<String> {
@@ -370,4 +178,168 @@ fn fetch_token(client: &mut HttpClient<EspHttpConnection>, server_root: &str) ->
             }
         }
     }
+}
+
+fn post_access_request(
+    client: &mut HttpClient<EspHttpConnection>,
+    server_root: &str,
+) -> Result<DeviceAccessResponse> {
+    let payload: DeviceAccessRequest = DeviceAccessRequest {
+        clientId: "31337-400432-6317832".to_string(),
+        description: "Basic SensESP-rs Sensor example".to_string(),
+    };
+
+    let json = match serde_json::to_string(&payload) {
+        Ok(s) => s,
+        Err(e) => return Err(anyhow!(e)),
+    };
+
+    let url = format!("http://{}/signalk/v1/access/requests", server_root);
+
+    let content_length_header: String = format!("{}", json.len());
+
+    let headers = [
+        ("content-type", "application/json"),
+        ("content-length", content_length_header.as_str()),
+    ];
+
+    // Send request
+    let mut request = client.post(&url, &headers)?;
+    request.write_all(json.as_bytes())?;
+    request.flush()?;
+    info!("-> POST {}", url);
+    let response = request.submit()?;
+
+    // Process response
+    let status = response.status();
+    info!("<- {}", status);
+
+    match status {
+        202 | 400 => {
+            info!("Successfully submitted request, code: {}", status);
+        }
+        404 => {
+            warn!("404? I think that's a completed but pending connection");
+        }
+        501 => return Err(anyhow!("Oh no! The server does not support device auth.")),
+        _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
+    };
+
+    let body_string = parse_response_string(response)?;
+
+    let response: DeviceAccessResponse = serde_json::from_str(body_string.as_str())?;
+
+    Ok(response)
+}
+
+fn get_access_request_status(
+    client: &mut HttpClient<EspHttpConnection>,
+    server_root: &str,
+    href: &str,
+) -> Result<DeviceAccessResponse> {
+    let url = format!("http://{}{}", server_root, href);
+
+    // Send request
+    let request = client.get(&url)?;
+    info!("-> GET {}", url);
+    let response = request.submit()?;
+
+    // Process response
+    let status = response.status();
+    info!("<- {}", status);
+
+    match status {
+        200 => {
+            info!("Connection pending, status request received");
+            status
+        }
+        404 => {
+            info!("404? I think that's a completed but pending connection");
+            404
+        }
+        501 => return Err(anyhow!("Oh no! The server does not support device auth.")),
+        _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
+    };
+
+    let body_string = parse_response_string(response)?;
+    let response: DeviceAccessResponse = serde_json::from_str(body_string.as_str())?;
+
+    Ok(response)
+}
+
+fn validate_token(
+    client: &mut HttpClient<EspHttpConnection>,
+    server_root: &str,
+    token: &str,
+) -> Result<DeviceAccessResponse> {
+    let url = format!("http://{}/signalk/v1/auth/validate", server_root);
+
+    let bearer = format!("Bearer {}", token);
+
+    let content = "";
+    let content_length_header: String = format!("{}", content.len());
+
+    let headers = [
+        ("content-type", "application/json"),
+        ("content-length", content_length_header.as_str()),
+        ("authorization", bearer.as_str()),
+    ];
+
+    // Send request
+    let mut request = client
+        .post(&url, &headers)
+        .map_err(|e| anyhow!("Error creating HTTP Request: {:?}", e))?;
+    request.write_all(content.as_bytes())?;
+    request.flush()?;
+    info!("-> POST {}", url);
+
+    let response = request
+        .submit()
+        .map_err(|e| anyhow!("Error submitting HTTP Request: {:?}", e))?;
+
+    // Process response
+    let status = response.status();
+    info!("<- {}", status);
+
+    match status {
+        200 => {
+            info!("Connection pending, status request received");
+            status
+        }
+        404 => {
+            info!("404? I think that's a completed but pending connection");
+            404
+        }
+        501 => return Err(anyhow!("Oh no! The server does not support device auth.")),
+        _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
+    };
+
+    let body_string = parse_response_string(response)?;
+    let response: DeviceAccessResponse = serde_json::from_str(body_string.as_str())?;
+
+    Ok(response)
+}
+
+fn parse_response_string(
+    mut response: esp_idf_svc::http::client::Response<&mut EspHttpConnection>,
+) -> Result<String> {
+    let mut buf = [0u8; 1024];
+    let bytes_read = io::try_read_full(&mut response, &mut buf).map_err(|e| e.0)?;
+    info!("Read {} bytes", bytes_read);
+    let body_string = match std::str::from_utf8(&buf[0..bytes_read]) {
+        Ok(body_string) => {
+            info!(
+                "Response body (truncated to {} bytes): {:?}",
+                buf.len(),
+                &body_string
+            );
+            body_string
+        }
+        Err(e) => {
+            error!("Error decoding response body: {}", e);
+            return Err(anyhow!(e));
+        }
+    };
+
+    return Ok(String::from(body_string));
 }

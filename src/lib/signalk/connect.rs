@@ -1,4 +1,3 @@
-
 use core::time::Duration;
 
 use crate::signalk::auth::get_token;
