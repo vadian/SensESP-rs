@@ -30,11 +30,11 @@ path = "src/examples/ssd1306-oled-bus.rs"
 
 [[bin]]
 name = "signalk"
-path = "src/lib/test/signalk.rs"
+path = "src/examples/signalk.rs"
 
 [[bin]]
 name = "constantsensor"
-path = "src/lib/test/constant_sensor.rs"
+path = "src/examples/constant_sensor.rs"
 
 [profile.release]
 opt-level = "s"
