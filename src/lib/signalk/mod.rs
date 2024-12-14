@@ -5,28 +5,22 @@ pub mod connect {
         http::client::Client as HttpClient,
         io::Write,
         utils::io,
-        wifi::{AuthMethod, ClientConfiguration, Configuration},
     };
     use esp_idf_svc::eventloop::EspSystemEventLoop;
     use esp_idf_svc::hal::peripherals::Peripherals;
-
     use esp_idf_svc::http::client::EspHttpConnection;
-    
     use esp_idf_svc::io::EspIOError;
-    
     use esp_idf_svc::nvs::EspDefaultNvsPartition;
-    
-    use esp_idf_svc::wifi::*;
     use esp_idf_svc::ws::client::{
         EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
     };
-
     use anyhow::{anyhow, Result};
     use log::{error, info, warn};
     use serde::{Deserialize, Serialize};
     use signalk::{definitions::V1DateTime, SignalKStreamMessage};
-
     use std::sync::mpsc;
+    use crate::wifi::wifi;
+
 
     const SIGNALK_SERVER_URI: &str = "signalk-demo.seapupper.me";
     #[allow(unused)]
@@ -73,16 +67,25 @@ pub mod connect {
         PENDING,
     }
 
-    pub fn signalk_server(wifi_ssid: &str, wifi_psk: &str) -> Result<(), anyhow::Error> {
+    pub fn signalk_server(wifi_ssid: &str, wifi_psk: &str) -> Result<()> {
         // Setup Wifi
         let peripherals = Peripherals::take()?;
         let sys_loop = EspSystemEventLoop::take()?;
-        let nvs = EspDefaultNvsPartition::take()?;
-        let mut wifi = BlockingWifi::wrap(
-            EspWifi::new(peripherals.modem, sys_loop.clone(), Some(nvs))?,
+        let _nvs = EspDefaultNvsPartition::take()?;
+        
+        // Connect to the Wi-Fi network
+        let _wifi= match wifi(
+            wifi_ssid,
+            wifi_psk,
+            peripherals.modem,
             sys_loop,
-        )?;
-        connect_wifi(wifi_ssid, wifi_psk, &mut wifi)?;
+        ) {
+            Ok(inner) => inner,
+            Err(err) => {
+                error!("Could not connect to Wi-Fi network: {:?}", err);
+                return Err(err);
+            }
+        };
 
         //get info from signalk api
         let token = get_token()?;
@@ -428,33 +431,5 @@ pub mod connect {
                 error!("{}", e);
             }
         }
-    }
-
-    fn connect_wifi(
-        ssid: &str,
-        password: &str,
-        wifi: &mut BlockingWifi<EspWifi<'static>>,
-    ) -> anyhow::Result<()> {
-        let wifi_configuration: Configuration = Configuration::Client(ClientConfiguration {
-            ssid: ssid.try_into().unwrap(),
-            bssid: None,
-            auth_method: AuthMethod::WPA2Personal,
-            password: password.try_into().unwrap(),
-            channel: None,
-            ..Default::default()
-        });
-
-        wifi.set_configuration(&wifi_configuration)?;
-
-        wifi.start()?;
-        info!("Wifi started");
-
-        wifi.connect()?;
-        info!("Wifi connected");
-
-        wifi.wait_netif_up()?;
-        info!("Wifi netif up");
-
-        Ok(())
     }
 }
