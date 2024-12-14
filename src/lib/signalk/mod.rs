@@ -17,7 +17,6 @@ pub mod connect {
     use signalk::{definitions::V1DateTime, SignalKStreamMessage};
     use std::sync::mpsc;
 
-    const SIGNALK_SERVER_URI: &str = "signalk-demo.seapupper.me";
     #[allow(unused)]
     const SIGNALK_DEMO_SERVER_URI: &str = "wss://demo.signalk.org/signalk/v1/api/";
 
@@ -62,12 +61,11 @@ pub mod connect {
         PENDING,
     }
 
-    pub fn signalk_server(wifi_ssid: &str, wifi_psk: &str) -> Result<()> {
+    pub fn signalk_server(wifi_ssid: &str, wifi_psk: &str, server_root: &str) -> Result<()> {
         // Setup Wifi
         let peripherals = Peripherals::take()?;
         let sys_loop = EspSystemEventLoop::take()?;
-        let _nvs = EspDefaultNvsPartition::take()?;
-
+        
         // Connect to the Wi-Fi network
         let _wifi = match wifi(wifi_ssid, wifi_psk, peripherals.modem, sys_loop) {
             Ok(inner) => inner,
@@ -78,7 +76,7 @@ pub mod connect {
         };
 
         //get info from signalk api
-        let token = get_token()?;
+        let token = get_token(server_root)?;
 
         let token = format!("Authorization: Bearer {}\r\n", token);
 
@@ -93,7 +91,7 @@ pub mod connect {
 
         let url = format!(
             "ws://{}/signalk/v1/stream?subscribe=all",
-            SIGNALK_SERVER_URI
+            server_root
         );
         let _client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
             handle_signalk_server_event(&tx, event)
@@ -106,6 +104,7 @@ pub mod connect {
 
     fn post_access_request(
         client: &mut HttpClient<EspHttpConnection>,
+        server_root: &str
     ) -> Result<DeviceAccessResponse> {
         let payload: DeviceAccessRequest = DeviceAccessRequest {
             clientId: "31337-400432-6317832".to_string(),
@@ -117,7 +116,7 @@ pub mod connect {
             Err(e) => return Err(anyhow!(e)),
         };
 
-        let url = format!("http://{}/signalk/v1/access/requests", SIGNALK_SERVER_URI);
+        let url = format!("http://{}/signalk/v1/access/requests", server_root);
 
         let content_length_header: String = format!("{}", json.len());
 
@@ -175,10 +174,10 @@ pub mod connect {
 
     fn get_access_request_status(
         client: &mut HttpClient<EspHttpConnection>,
+        server_root: &str,
         href: &str,
     ) -> Result<DeviceAccessResponse> {
-        let url = "http://signalk-demo.seapupper.me";
-        let url = format!("{}{}", url, href);
+        let url = format!("http://{}{}", server_root, href);
 
         // Send request
         let request = client.get(&url)?;
@@ -227,9 +226,10 @@ pub mod connect {
 
     fn validate_token(
         client: &mut HttpClient<EspHttpConnection>,
+        server_root: &str,
         token: &str,
     ) -> Result<DeviceAccessResponse> {
-        let url = format!("http://{}/signalk/v1/auth/validate", SIGNALK_SERVER_URI);
+        let url = format!("http://{}/signalk/v1/auth/validate", server_root);
 
         let bearer = format!("Bearer {}", token);
 
@@ -294,16 +294,19 @@ pub mod connect {
         Ok(response)
     }
 
-    fn get_token() -> Result<String> {
+    fn get_token(server_root: &str) -> Result<String> {
         let nvs = match EspDefaultNvsPartition::take() {
             Ok(n) => match EspNvs::new(n, "token", true) {
                 Ok(n) => Some(n),
                 Err(e) => {
-                    error!("Error building NVS: {}", e);
+                    error!("Error creating NVS reader: {}", e);
                     None
                 }
             },
-            Err(_) => None,
+            Err(e) => {
+                error!("Error taking NVS partition: {}", e);
+                None
+            },
         };
 
         let mut buf = [0u8; 1024];
@@ -328,7 +331,6 @@ pub mod connect {
         };
         info!("Token: {:?}", token);
 
-        let token: Option<String> = Some("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2UiOiIzMTMzNy00MDA0MzItNjMxNzgzMiIsImlhdCI6MTczNDIwMDUwN30.iYbrKnuw08XUIzMJnOTBxtXsc_S-Gl7cNLm_ExnfQdY".to_string());
         let do_validation = false;
 
         let mut client = HttpClient::wrap(EspHttpConnection::new(&Default::default())?);
@@ -336,7 +338,7 @@ pub mod connect {
         let token = match token {
             Some(t) => match do_validation {
                 false => Some(t),
-                true => match validate_token(&mut client, &t.clone()) {
+                true => match validate_token(&mut client, server_root, &t.clone()) {
                     Ok(r) => match r.accessRequest {
                         Some(a) => match a.permission {
                             Permission::APPROVED => {
@@ -364,7 +366,7 @@ pub mod connect {
 
         match token {
             Some(t) => Ok(t),
-            None => match fetch_token(&mut client) {
+            None => match fetch_token(&mut client, server_root) {
                 Ok(t) => {
                     info!("Success: {}", t);
                     match nvs {
@@ -390,12 +392,12 @@ pub mod connect {
         }
     }
 
-    fn fetch_token(client: &mut HttpClient<EspHttpConnection>) -> Result<String> {
-        let response = post_access_request(client)?;
+    fn fetch_token(client: &mut HttpClient<EspHttpConnection>, server_root: &str) -> Result<String> {
+        let response = post_access_request(client, server_root)?;
 
         //loop until we complete
         loop {
-            let response = get_access_request_status(client, response.href.as_str())?;
+            let response = get_access_request_status(client, server_root, response.href.as_str())?;
 
             match response.state {
                 DeviceAccessState::PENDING => {

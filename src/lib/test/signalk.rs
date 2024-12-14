@@ -13,6 +13,8 @@ pub struct Config {
     wifi_ssid: &'static str,
     #[default("")]
     wifi_psk: &'static str,
+    #[default("")]
+    server_root: &'static str
 }
 
 fn main() -> Result<()> {
@@ -27,5 +29,5 @@ fn main() -> Result<()> {
 
     let app_config = CONFIG;
 
-    signalk_server(app_config.wifi_ssid, app_config.wifi_psk)
+    signalk_server(app_config.wifi_ssid, app_config.wifi_psk, app_config.server_root)
 }
