@@ -1,26 +1,21 @@
 pub mod connect {
     use core::time::Duration;
 
-    use embedded_svc::{
-        http::client::Client as HttpClient,
-        io::Write,
-        utils::io,
-    };
+    use crate::wifi::wifi;
+    use anyhow::{anyhow, Result};
+    use embedded_svc::{http::client::Client as HttpClient, io::Write, utils::io};
     use esp_idf_svc::eventloop::EspSystemEventLoop;
     use esp_idf_svc::hal::peripherals::Peripherals;
     use esp_idf_svc::http::client::EspHttpConnection;
     use esp_idf_svc::io::EspIOError;
-    use esp_idf_svc::nvs::EspDefaultNvsPartition;
+    use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
     use esp_idf_svc::ws::client::{
         EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
     };
-    use anyhow::{anyhow, Result};
     use log::{error, info, warn};
     use serde::{Deserialize, Serialize};
     use signalk::{definitions::V1DateTime, SignalKStreamMessage};
     use std::sync::mpsc;
-    use crate::wifi::wifi;
-
 
     const SIGNALK_SERVER_URI: &str = "signalk-demo.seapupper.me";
     #[allow(unused)]
@@ -72,14 +67,9 @@ pub mod connect {
         let peripherals = Peripherals::take()?;
         let sys_loop = EspSystemEventLoop::take()?;
         let _nvs = EspDefaultNvsPartition::take()?;
-        
+
         // Connect to the Wi-Fi network
-        let _wifi= match wifi(
-            wifi_ssid,
-            wifi_psk,
-            peripherals.modem,
-            sys_loop,
-        ) {
+        let _wifi = match wifi(wifi_ssid, wifi_psk, peripherals.modem, sys_loop) {
             Ok(inner) => inner,
             Err(err) => {
                 error!("Could not connect to Wi-Fi network: {:?}", err);
@@ -305,6 +295,39 @@ pub mod connect {
     }
 
     fn get_token() -> Result<String> {
+        let nvs = match EspDefaultNvsPartition::take() {
+            Ok(n) => match EspNvs::new(n, "token", true) {
+                Ok(n) => Some(n),
+                Err(e) => {
+                    error!("Error building NVS: {}", e);
+                    None
+                }
+            },
+            Err(_) => None,
+        };
+
+        let mut buf = [0u8; 1024];
+        let token = match nvs {
+            Some(ref n) => match n.get_blob("token", &mut buf) {
+                Ok(b) => match b {
+                    Some(u) => match String::from_utf8(u.to_vec()) {
+                        Ok(s) => Some(s),
+                        Err(e) => {
+                            error!("Error parsing token: {}", e);
+                            None
+                        }
+                    },
+                    None => None,
+                },
+                Err(e) => {
+                    error!("Error pulling token from NVS: {}", e);
+                    None
+                }
+            },
+            None => None,
+        };
+        info!("Token: {:?}", token);
+
         let token: Option<String> = Some("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2UiOiIzMTMzNy00MDA0MzItNjMxNzgzMiIsImlhdCI6MTczNDIwMDUwN30.iYbrKnuw08XUIzMJnOTBxtXsc_S-Gl7cNLm_ExnfQdY".to_string());
         let do_validation = false;
 
@@ -344,6 +367,19 @@ pub mod connect {
             None => match fetch_token(&mut client) {
                 Ok(t) => {
                     info!("Success: {}", t);
+                    match nvs {
+                        Some(mut n) => match n.set_blob("token", t.as_bytes()) {
+                            Ok(()) => {
+                                info!("Successfully stored token");
+                            }
+                            Err(e) => {
+                                error!("Error storing token to NVS: {}", e);
+                            }
+                        },
+                        None => {
+                            warn!("No NVS - unable to store token");
+                        }
+                    };
                     Ok(t)
                 }
                 Err(e) => {

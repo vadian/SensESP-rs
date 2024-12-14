@@ -1,6 +1,9 @@
 use anyhow::{bail, Result};
 use esp_idf_svc::{
-    eventloop::EspSystemEventLoop, hal::peripheral, nvs::EspDefaultNvsPartition, wifi::{AuthMethod, BlockingWifi, ClientConfiguration, Configuration, EspWifi}
+    eventloop::EspSystemEventLoop,
+    hal::peripheral,
+    nvs::EspDefaultNvsPartition,
+    wifi::{AuthMethod, BlockingWifi, ClientConfiguration, Configuration, EspWifi},
 };
 use log::info;
 pub fn wifi(
@@ -17,7 +20,7 @@ pub fn wifi(
         auth_method = AuthMethod::None;
         info!("Wifi password is empty");
     }
-    let nvs = match EspDefaultNvsPartition::take(){
+    let nvs = match EspDefaultNvsPartition::take() {
         Ok(n) => Some(n),
         Err(_) => None,
     };
