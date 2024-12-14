@@ -8,8 +8,10 @@ use std::time::Duration;
 use anyhow::Result;
 use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::prelude::Peripherals;
+use log::info;
 use sensesp::application::Application;
 use sensesp::sensor::{Attachable, ConstantSensor, TimedSensor};
+use sensesp::signalk::connect::signalk_server;
 use smol::stream::StreamExt;
 use toml_cfg::toml_config;
 
@@ -23,6 +25,22 @@ pub struct Config {
 }
 
 fn main() -> Result<()> {
+    // It is necessary to call this function once. Otherwise some patches to the runtime
+    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
+    esp_idf_svc::sys::link_patches();
+
+    // Bind the log crate to the ESP Logging facilities
+    esp_idf_svc::log::EspLogger::initialize_default();
+
+    info!("Starting...");
+
+    let app_config = CONFIG;
+
+    signalk_server(app_config.wifi_ssid, app_config.wifi_psk)
+}
+
+#[allow(dead_code)]
+fn test_constant_sensor() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_svc::sys::link_patches();
@@ -58,8 +76,8 @@ fn main() -> Result<()> {
         let local_waker = LocalWaker::noop();
         let waker = Waker::noop();
 
-        let mut cx = ContextBuilder::from_waker(&waker)
-            .local_waker(&local_waker)
+        let mut cx = ContextBuilder::from_waker(waker)
+            .local_waker(local_waker)
             .build();
         loop {
             match constant_subscriber.poll_next(&mut cx) {
