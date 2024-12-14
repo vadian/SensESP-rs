@@ -1,0 +1,4 @@
+# Test scripts
+
+While the /src/examples/ folder contains working examples, this directory serves to hold test projects
+for ongoing development.  They are always subject to change and not guaranteed to be in working order.
