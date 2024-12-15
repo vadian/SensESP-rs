@@ -171,8 +171,8 @@ fn fetch_token(client: &mut HttpClient<EspHttpConnection>, server_root: &str) ->
                         },
                     None => {
                         Err(anyhow!("Access request state is COMPLETED without accessRequest section.
-                            This happens when a request is pending and the same ClientId resubmits a request,
-                            rather than referencing by href. {:?}", &response))
+This happens when a request is pending and the same ClientId resubmits a request, 
+rather than referencing by href.  Deny the previous request in the GUI Admin panel.\n{:?}", &response))
                     }
                 }
             }

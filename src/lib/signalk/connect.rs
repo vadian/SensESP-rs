@@ -1,10 +1,7 @@
 use core::time::Duration;
 
 use crate::signalk::auth::get_token;
-use crate::wifi::wifi;
 use anyhow::Result;
-use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::ws::client::{
     EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
@@ -13,23 +10,7 @@ use log::{error, info};
 use signalk::SignalKStreamMessage;
 use std::sync::mpsc;
 
-#[allow(unused)]
-const SIGNALK_DEMO_SERVER_URI: &str = "wss://demo.signalk.org/signalk/v1/api/";
-
-pub fn signalk_server(wifi_ssid: &str, wifi_psk: &str, server_root: &str) -> Result<()> {
-    // Setup Wifi
-    let peripherals = Peripherals::take()?;
-    let sys_loop = EspSystemEventLoop::take()?;
-
-    // Connect to the Wi-Fi network
-    let _wifi = match wifi(wifi_ssid, wifi_psk, peripherals.modem, sys_loop) {
-        Ok(inner) => inner,
-        Err(err) => {
-            error!("Could not connect to Wi-Fi network: {:?}", err);
-            return Err(err);
-        }
-    };
-
+pub fn signalk_server(server_root: &str) -> Result<()> {
     //get info from signalk api
     let token = get_token(server_root)?;
 

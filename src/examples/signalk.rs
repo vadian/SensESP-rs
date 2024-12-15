@@ -2,8 +2,10 @@
 #![feature(noop_waker)]
 
 use anyhow::Result;
-use log::info;
-use sensesp::signalk::connect::signalk_server;
+use esp_idf_hal::prelude::Peripherals;
+use esp_idf_svc::eventloop::EspSystemEventLoop;
+use log::{error, info};
+use sensesp::{signalk::connect::signalk_server, wifi::wifi};
 use toml_cfg::toml_config;
 
 #[derive(Debug)]
@@ -29,9 +31,23 @@ fn main() -> Result<()> {
 
     let app_config = CONFIG;
 
-    signalk_server(
+    // Setup Wifi
+    let peripherals = Peripherals::take()?;
+    let sys_loop = EspSystemEventLoop::take()?;
+
+    // Connect to the Wi-Fi network
+    let _wifi = match wifi(
         app_config.wifi_ssid,
         app_config.wifi_psk,
-        app_config.server_root,
-    )
+        peripherals.modem,
+        sys_loop,
+    ) {
+        Ok(inner) => inner,
+        Err(err) => {
+            error!("Could not connect to Wi-Fi network: {:?}", err);
+            return Err(err);
+        }
+    };
+
+    signalk_server(app_config.server_root)
 }
