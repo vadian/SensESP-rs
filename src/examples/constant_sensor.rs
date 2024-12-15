@@ -11,16 +11,6 @@ use esp_idf_hal::prelude::Peripherals;
 use sensesp::application::Application;
 use sensesp::sensor::{Attachable, ConstantSensor, TimedSensor};
 use smol::stream::StreamExt;
-use toml_cfg::toml_config;
-
-#[derive(Debug)]
-#[toml_config]
-pub struct Config {
-    #[default("")]
-    wifi_ssid: &'static str,
-    #[default("")]
-    wifi_psk: &'static str,
-}
 
 fn main() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -58,8 +48,8 @@ fn main() -> Result<()> {
         let local_waker = LocalWaker::noop();
         let waker = Waker::noop();
 
-        let mut cx = ContextBuilder::from_waker(&waker)
-            .local_waker(&local_waker)
+        let mut cx = ContextBuilder::from_waker(waker)
+            .local_waker(local_waker)
             .build();
         loop {
             match constant_subscriber.poll_next(&mut cx) {
