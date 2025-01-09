@@ -3,7 +3,7 @@ use core::time::Duration;
 use anyhow::{anyhow, Result};
 use embedded_svc::{http::client::Client as HttpClient, io::Write, utils::io};
 use esp_idf_svc::http::client::EspHttpConnection;
-use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
+use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use signalk::definitions::V1DateTime;
@@ -49,21 +49,7 @@ enum DeviceAccessState {
     PENDING,
 }
 
-pub(crate) fn get_token(server_root: &str) -> Result<String> {
-    let nvs = match EspDefaultNvsPartition::take() {
-        Ok(n) => match EspNvs::new(n, "token", true) {
-            Ok(n) => Some(n),
-            Err(e) => {
-                error!("Error creating NVS reader: {}", e);
-                None
-            }
-        },
-        Err(e) => {
-            error!("Error taking NVS partition: {}", e);
-            None
-        }
-    };
-
+pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<String> {
     let mut buf = [0u8; 1024];
     let token = match nvs {
         Some(ref n) => match n.get_blob("token", &mut buf) {

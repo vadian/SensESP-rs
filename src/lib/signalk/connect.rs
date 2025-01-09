@@ -4,6 +4,7 @@ use core::time::Duration;
 use crate::signalk::auth::get_token;
 use anyhow::Result;
 use esp_idf_svc::io::EspIOError;
+use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use esp_idf_svc::ws::client::{
     EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
 };
@@ -12,9 +13,9 @@ use serde_json::json;
 use signalk::delta::{V1DeltaFormatBuilder, V1UpdateTypeBuilder};
 use signalk::{SignalKStreamMessage, V1DefSource, V1UpdateValue};
 
-pub fn signalk_server(server_root: &str) -> Result<()> {
+pub fn signalk_server(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<()> {
     //get info from signalk api
-    let token = get_token(server_root)?;
+    let token = get_token(server_root, nvs)?;
 
     let token = format!("Authorization: Bearer {}\r\n", token);
 

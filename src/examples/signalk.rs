@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use esp_idf_hal::prelude::Peripherals;
-use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::{EspDefaultNvsPartition, EspNvs}};
 use log::{error, info};
 use sensesp::{signalk::connect::signalk_server, wifi::wifi};
 use toml_cfg::toml_config;
@@ -35,6 +35,21 @@ fn main() -> Result<()> {
     let peripherals = Peripherals::take()?;
     let sys_loop = EspSystemEventLoop::take()?;
 
+    //NVS must be taken before wifi connect
+    let nvs = match EspDefaultNvsPartition::take() {
+        Ok(n) => match EspNvs::new(n, "token", true) {
+            Ok(n) => Some(n),
+            Err(e) => {
+                error!("Error creating NVS reader: {}", e);
+                None
+            }
+        },
+        Err(e) => {
+            error!("Error taking NVS partition: {}", e);
+            None
+        }
+    };
+
     // Connect to the Wi-Fi network
     let _wifi = match wifi(
         app_config.wifi_ssid,
@@ -49,5 +64,5 @@ fn main() -> Result<()> {
         }
     };
 
-    signalk_server(app_config.server_root)
+    signalk_server(app_config.server_root, nvs)
 }
