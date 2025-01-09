@@ -11,7 +11,6 @@ use log::{error, info, warn};
 use serde_json::json;
 use signalk::delta::{V1DeltaFormatBuilder, V1UpdateTypeBuilder};
 use signalk::{SignalKStreamMessage, V1DefSource, V1UpdateValue};
-use std::sync::mpsc;
 
 pub fn signalk_server(server_root: &str) -> Result<()> {
     //get info from signalk api
@@ -26,29 +25,37 @@ pub fn signalk_server(server_root: &str) -> Result<()> {
         ..Default::default()
     };
     let timeout = Duration::from_secs(10);
-    let (tx, _rx) = mpsc::channel::<SignalKStreamMessage>();
 
     //change this to subscribe=all to get flooded with all the server deltas on terminal :D
     let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server_root);
-    let _client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
+    let mut client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
         handle_signalk_server_event(event)
     })?;
 
     loop {
         std::thread::sleep(Duration::from_millis(2000));
-        match tx.send(SignalKStreamMessage::Delta(
-            V1DeltaFormatBuilder::default()
-                .add_update(
-                    V1UpdateTypeBuilder::default()
-                        .source(V1DefSource::builder().label("Basic SensESP-rs Sensor example".to_string()).build())
-                        .add_update(V1UpdateValue {
-                            path: "navigation.speedOverGround".to_string(),
-                            value: json!(7.85),
-                        })
-                        .build(),
-                )
-                .build(),
-        )) {
+        match client.send(
+            esp_idf_svc::ws::FrameType::Text(false),
+            serde_json::to_string(&SignalKStreamMessage::Delta(
+                V1DeltaFormatBuilder::default()
+                    .context("self".to_string())
+                    .add_update(
+                        V1UpdateTypeBuilder::default()
+                            .source(
+                                V1DefSource::builder()
+                                    .label("Basic SensESP-rs Sensor example".to_string())
+                                    .build(),
+                            )
+                            .add_update(V1UpdateValue {
+                                path: "navigation.speedOverGround".to_string(),
+                                value: json!(7.85),
+                            })
+                            .build(),
+                    )
+                    .build(),
+            ))?
+            .as_bytes(),
+        ) {
             Ok(()) => info!("Successfully sent delta."),
             Err(e) => error!("Error sending delta: {:?}", e),
         }
@@ -56,7 +63,6 @@ pub fn signalk_server(server_root: &str) -> Result<()> {
 }
 
 fn handle_signalk_server_event(
-    //     _tx: &mpsc::Sender<SignalKStreamMessage>,
     event: &Result<WebSocketEvent, EspIOError>,
 ) {
     match event {
@@ -99,7 +105,7 @@ fn handle_signalk_server_event(
             }
         },
         Err(e) => {
-            error!("Error handling event: {:?}", e);
+            error!("Error handling websocket event: {:?}", e);
         }
     }
 }
