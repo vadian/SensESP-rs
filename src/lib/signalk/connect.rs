@@ -1,10 +1,14 @@
 use core::str;
 use core::time::Duration;
 
+use crate::sensor::SensESPSensor;
 use crate::signalk::auth::get_token;
+use crate::wifi::wifi;
 use anyhow::Result;
+use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
+use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::ws::client::{
     EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
 };
@@ -13,7 +17,59 @@ use serde_json::json;
 use signalk::delta::{V1DeltaFormatBuilder, V1UpdateTypeBuilder};
 use signalk::{SignalKStreamMessage, V1DefSource, V1UpdateValue};
 
-pub fn signalk_server(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<()> {
+use super::config;
+
+pub struct SignalKServer {
+    sensors: Vec<Box<dyn SensESPSensor>>,
+    _wifi: Option<Box<EspWifi<'static>>>
+}
+
+
+impl SignalKServer {
+    pub fn tick(&mut self) -> () {
+        for sensor in &mut self.sensors {
+            sensor.tick();
+        }
+    }
+
+    pub fn run(mut self) -> ! {
+        loop {
+            self.tick();
+        }
+    }
+
+    pub fn new(config: config::SignalKConnection, server: &config::SignalKServerDetails) -> Result<Self> {
+        let wifi = match config {
+            config::SignalKConnection::ExistingWifi => None::<Box<EspWifi<'static>>>,
+            config::SignalKConnection::WifiPsk { ssid, password, modem } => {
+                let sys_loop = EspSystemEventLoop::take()?;
+
+                    // Connect to the Wi-Fi network
+                let wifi = match wifi(
+                    ssid,
+                    password,
+                    modem,
+                    sys_loop,
+                    None
+                ) {
+                    Ok(inner) => inner,
+                    Err(err) => {
+                        error!("Could not connect to Wi-Fi network: {:?}", err);
+                        return Err(err);
+                    }
+                };
+                Some(wifi)
+            },
+            config::SignalKConnection::AccessPointConfigurable => todo!(),
+        };
+        Ok(Self{_wifi: wifi, sensors: vec![]})
+    }
+
+    pub fn attach(&mut self, sensor: Box<dyn SensESPSensor>) {
+        self.sensors.push(sensor);
+    }
+
+pub fn signalk_server(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<Self> {
     //get info from signalk api
     let token = get_token(server_root, nvs)?;
 
@@ -30,7 +86,7 @@ pub fn signalk_server(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Res
     //change this to subscribe=all to get flooded with all the server deltas on terminal :D
     let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server_root);
     let mut client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
-        handle_signalk_server_event(event)
+        Self::handle_signalk_server_event(event)
     })?;
 
     loop {
@@ -109,4 +165,5 @@ fn handle_signalk_server_event(
             error!("Error handling websocket event: {:?}", e);
         }
     }
+}
 }
