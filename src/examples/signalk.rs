@@ -3,7 +3,10 @@
 
 use anyhow::Result;
 use esp_idf_hal::prelude::Peripherals;
-use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::{EspDefaultNvsPartition, EspNvs}};
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop,
+    nvs::{EspDefaultNvsPartition, EspNvs},
+};
 use log::{error, info};
 use sensesp::{signalk::connect::SignalKServer, wifi::wifi};
 use toml_cfg::toml_config;
@@ -56,7 +59,7 @@ fn main() -> Result<()> {
         app_config.wifi_psk,
         peripherals.modem,
         sys_loop,
-        None
+        None,
     ) {
         Ok(inner) => inner,
         Err(err) => {
@@ -65,6 +68,5 @@ fn main() -> Result<()> {
         }
     };
 
-    let _server = SignalKServer::signalk_server(app_config.server_root, nvs)?;
-    Ok(())
+    SignalKServer::<sensesp::signalk::connect::New>::signalk_server(app_config.server_root, nvs)?
 }
