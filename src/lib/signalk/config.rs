@@ -1,16 +1,16 @@
 use esp_idf_hal::modem::Modem;
 
-pub enum SignalKConnection<'a> {
+pub enum SignalKConnection {
     ExistingWifi,
     WifiPsk {
-        ssid: &'a str,
-        password: &'a str,
+        ssid: String,
+        password: String,
         modem: Modem,
     },
     AccessPointConfigurable, //todo
 }
 
-pub struct SignalKServerDetails<'a> {
-    hostname: &'a str,
-    sensor_name: &'a str,
+pub struct SignalKServerDetails {
+    hostname: String,
+    sensor_name: String,
 }

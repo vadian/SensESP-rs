@@ -49,7 +49,7 @@ impl<T: ServerState> SignalKServer<T> {
                 let sys_loop = EspSystemEventLoop::take()?;
 
                 // Connect to the Wi-Fi network
-                let wifi = match wifi(ssid, password, modem, sys_loop, None) {
+                let wifi = match wifi(&ssid, &password, modem, sys_loop, None) {
                     Ok(inner) => inner,
                     Err(err) => {
                         error!("Could not connect to Wi-Fi network: {:?}", err);
@@ -76,7 +76,7 @@ impl SignalKServer<New> {
         todo!();
         Ok(SignalKServer::<Initialized> {
             sensors: self.sensors,
-            _wifi: None,
+            _wifi: self._wifi,
             status: PhantomData,
         })
     }

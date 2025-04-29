@@ -6,6 +6,7 @@ use esp_idf_svc::{
     wifi::{AuthMethod, BlockingWifi, ClientConfiguration, Configuration, EspWifi},
 };
 use log::info;
+
 pub fn wifi(
     ssid: &str,
     pass: &str,

@@ -43,6 +43,7 @@ fn main() -> Result<()> {
         app_config.wifi_psk,
         peripherals.modem,
         sysloop,
+        None
     ) {
         Ok(inner) => inner,
         Err(err) => {

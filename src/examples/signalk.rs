@@ -8,7 +8,7 @@ use esp_idf_svc::{
     nvs::{EspDefaultNvsPartition, EspNvs},
 };
 use log::{error, info};
-use sensesp::{signalk::connect::SignalKServer, wifi::wifi};
+use sensesp::{signalk::connect::{self, ServerState, SignalKServer}, wifi::wifi};
 use toml_cfg::toml_config;
 
 #[derive(Debug)]
@@ -68,5 +68,6 @@ fn main() -> Result<()> {
         }
     };
 
-    SignalKServer::<sensesp::signalk::connect::New>::signalk_server(app_config.server_root, nvs)?
+    let server = SignalKServer::<connect::New>::signalk_server(app_config.server_root, nvs)?;
+    
 }
