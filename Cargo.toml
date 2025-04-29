@@ -6,7 +6,7 @@ version = "0.1.0"
 authors = ["Carl Middleton <dev@carlcodes.com>"]
 edition = "2024"
 resolver = "2"
-rust-version = "1.82"
+rust-version = "1.85"
 
 [lib]
 name = "sensesp"
