@@ -8,7 +8,7 @@ use esp_idf_svc::{
 };
 use log::{error, info};
 use sensesp::{
-    signalk::{self, SignalKServer},
+    signalk::{self, config::{SignalKConnection, SignalKServerDetails}, SignalKServer},
     wifi::wifi,
 };
 use toml_cfg::toml_config;
@@ -38,7 +38,6 @@ fn main() -> Result<()> {
 
     // Setup Wifi
     let peripherals = Peripherals::take()?;
-    let sys_loop = EspSystemEventLoop::take()?;
 
     //NVS must be taken before wifi connect
     let nvs = match EspDefaultNvsPartition::take() {
@@ -55,20 +54,16 @@ fn main() -> Result<()> {
         }
     };
 
-    // Connect to the Wi-Fi network
-    let _wifi = match wifi(
-        app_config.wifi_ssid,
-        app_config.wifi_psk,
-        peripherals.modem,
-        sys_loop,
-        None,
-    ) {
-        Ok(inner) => inner,
-        Err(err) => {
-            error!("Could not connect to Wi-Fi network: {:?}", err);
-            return Err(err);
-        }
+    let config = SignalKConnection::WifiPsk {
+        ssid: app_config.wifi_ssid.to_string(),
+        password: app_config.wifi_psk.to_string(),
+        modem: peripherals.modem,
     };
 
-    let _server = SignalKServer::<signalk::New>::signalk_server(app_config.server_root, nvs)?;
+    let details = SignalKServerDetails { hostname: app_config.server_root.to_string(), sensor_name: None };
+
+    let server = signalk::new(config)?;
+    let server = server.init(&details, nvs)?;
+
+    Ok(())
 }

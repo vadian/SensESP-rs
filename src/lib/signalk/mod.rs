@@ -35,10 +35,7 @@ impl ServerState for Initialized {}
 pub struct Running {}
 impl ServerState for Running {}
 
-pub fn new(
-    config: config::SignalKConnection,
-    _server: &config::SignalKServerDetails,
-) -> Result<SignalKServer<New>> {
+pub fn new(config: config::SignalKConnection) -> Result<SignalKServer<New>> {
     let wifi = match config {
         config::SignalKConnection::ExistingWifi => None::<Box<EspWifi<'static>>>,
         config::SignalKConnection::WifiPsk {
@@ -72,9 +69,13 @@ impl SignalKServer<New> {
         self.sensors.push(sensor);
         self
     }
-    pub fn init(self, server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<SignalKServer<Initialized>> {
+    pub fn init(
+        self,
+        server: &config::SignalKServerDetails,
+        nvs: Option<EspNvs<NvsDefault>>,
+    ) -> Result<SignalKServer<Initialized>> {
         //get info from signalk api
-        let token = get_token(server_root, nvs)?;
+        let token = get_token(&server.hostname, nvs)?;
 
         let token = format!("Authorization: Bearer {}\r\n", token);
 
@@ -87,7 +88,7 @@ impl SignalKServer<New> {
         let timeout = Duration::from_secs(10);
 
         //change this to subscribe=all to get flooded with all the server deltas on terminal :D
-        let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server_root);
+        let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server.hostname);
         let mut _client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
             Self::handle_signalk_server_event(event)
         })?;
@@ -100,9 +101,12 @@ impl SignalKServer<New> {
 }
 
 impl SignalKServer<Initialized> {
-    pub fn attach<T>(&mut self, sensor: Box<impl SensESPSensor + Attachable<T> + 'static>) -> &mut SignalKServer<Initialized> {
+    pub fn attach<T>(
+        &mut self,
+        sensor: Box<impl SensESPSensor + Attachable<T> + 'static>,
+    ) -> &mut SignalKServer<Initialized> {
         self.sensors.push(sensor);
-        
+
         self
     }
 
@@ -112,7 +116,7 @@ impl SignalKServer<Initialized> {
         }
         SignalKServer::<Running> {
             sensors: self.sensors,
-            _wifi: None,
+            _wifi: self._wifi,
             status: PhantomData,
         }
     }
