@@ -1,5 +1,4 @@
 #![feature(local_waker)]
-#![feature(noop_waker)]
 
 use anyhow::Result;
 use esp_idf_hal::prelude::Peripherals;
@@ -9,7 +8,7 @@ use esp_idf_svc::{
 };
 use log::{error, info};
 use sensesp::{
-    signalk::{self, ServerState, SignalKServer},
+    signalk::{self, SignalKServer},
     wifi::wifi,
 };
 use toml_cfg::toml_config;
@@ -71,5 +70,5 @@ fn main() -> Result<()> {
         }
     };
 
-    let server = SignalKServer::<signalk::New>::signalk_server(app_config.server_root, nvs)?;
+    let _server = SignalKServer::<signalk::New>::signalk_server(app_config.server_root, nvs)?;
 }

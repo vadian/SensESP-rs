@@ -1,5 +1,4 @@
 #![feature(local_waker)]
-#![feature(noop_waker)]
 use std::task::Poll::{Pending, Ready};
 use std::task::Waker;
 use std::task::{ContextBuilder, LocalWaker};

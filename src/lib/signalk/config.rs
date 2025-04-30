@@ -11,6 +11,6 @@ pub enum SignalKConnection {
 }
 
 pub struct SignalKServerDetails {
-    hostname: String,
-    sensor_name: String,
+    _hostname: String,
+    _sensor_name: String,
 }

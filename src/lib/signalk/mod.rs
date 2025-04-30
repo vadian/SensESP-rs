@@ -2,7 +2,7 @@ use core::str;
 use core::time::Duration;
 use std::marker::PhantomData;
 
-use crate::sensor::SensESPSensor;
+use crate::sensor::{Attachable, SensESPSensor};
 use crate::signalk::auth::get_token;
 use crate::wifi::wifi;
 use anyhow::Result;
@@ -37,7 +37,7 @@ impl ServerState for Running {}
 
 pub fn new(
     config: config::SignalKConnection,
-    server: &config::SignalKServerDetails,
+    _server: &config::SignalKServerDetails,
 ) -> Result<SignalKServer<New>> {
     let wifi = match config {
         config::SignalKConnection::ExistingWifi => None::<Box<EspWifi<'static>>>,
@@ -72,8 +72,25 @@ impl SignalKServer<New> {
         self.sensors.push(sensor);
         self
     }
-    pub fn init(self) -> Result<SignalKServer<Initialized>> {
-        todo!();
+    pub fn init(self, server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<SignalKServer<Initialized>> {
+        //get info from signalk api
+        let token = get_token(server_root, nvs)?;
+
+        let token = format!("Authorization: Bearer {}\r\n", token);
+
+        // Connect websocket
+        let config = EspWebSocketClientConfig {
+            crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
+            headers: Some(token.as_str()),
+            ..Default::default()
+        };
+        let timeout = Duration::from_secs(10);
+
+        //change this to subscribe=all to get flooded with all the server deltas on terminal :D
+        let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server_root);
+        let mut _client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
+            Self::handle_signalk_server_event(event)
+        })?;
         Ok(SignalKServer::<Initialized> {
             sensors: self.sensors,
             _wifi: self._wifi,
@@ -83,8 +100,9 @@ impl SignalKServer<New> {
 }
 
 impl SignalKServer<Initialized> {
-    pub fn attach(&mut self, sensor: Box<dyn SensESPSensor>) -> &mut SignalKServer<Initialized> {
+    pub fn attach<T>(&mut self, sensor: Box<impl SensESPSensor + Attachable<T> + 'static>) -> &mut SignalKServer<Initialized> {
         self.sensors.push(sensor);
+        
         self
     }
 
