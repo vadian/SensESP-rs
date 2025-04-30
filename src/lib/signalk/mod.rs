@@ -1,6 +1,8 @@
 use core::str;
 use core::time::Duration;
+use std::fmt::Display;
 use std::marker::PhantomData;
+use std::thread::JoinHandle;
 
 use crate::sensor::{Attachable, SensESPSensor};
 use crate::signalk::auth::get_token;
@@ -13,6 +15,7 @@ use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::ws::client::{
     EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
 };
+use eyeball::Subscriber;
 use log::{error, info, warn};
 use serde_json::json;
 use signalk::delta::{V1DeltaFormatBuilder, V1UpdateTypeBuilder};
@@ -23,8 +26,42 @@ pub mod config;
 
 pub struct SignalKServer<T: ServerState> {
     sensors: Vec<Box<dyn SensESPSensor>>,
+    subscribers: Vec<JoinHandle<()>>,
+    device_name: Option<String>,
     _wifi: Option<Box<EspWifi<'static>>>,
+    ws: Option<EspWebSocketClient<'static>>,
     status: PhantomData<T>,
+}
+
+trait ValueGetter<T: Copy> {
+    fn get(&self) -> T;
+}
+
+pub struct SensorSubcriber<T: Copy> {
+    subscriber: Subscriber<T>,
+    sensor: Box<dyn SensESPSensor>,
+    last_value: T,
+}
+impl<T: Copy + Default> SensorSubcriber<T> {
+    pub fn new(sensor: Box<dyn SensESPSensor>, subscriber: Subscriber<T>) -> Self {
+        SensorSubcriber {
+            sensor,
+            subscriber,
+            last_value: Default::default(),
+        }
+    }
+
+    // pub fn poll_next(&mut self) -> Result<Option<T>, EspIOError> {
+    //     self.subscriber.poll_next()
+    // }
+}
+impl<T> ValueGetter<T> for SensorSubcriber<T>
+where
+    T: Copy,
+{
+    fn get(&self) -> T {
+        self.subscriber.get()
+    }
 }
 
 pub trait ServerState {}
@@ -58,17 +95,41 @@ pub fn new(config: config::SignalKConnection) -> Result<SignalKServer<New>> {
         config::SignalKConnection::AccessPointConfigurable => todo!(),
     };
     Ok(SignalKServer::<New> {
-        _wifi: wifi,
         sensors: vec![],
+        subscribers: vec![],
+        device_name: None,
+        ws: None,
+        _wifi: wifi,
         status: PhantomData,
     })
 }
 
 impl SignalKServer<New> {
-    pub fn attach(&mut self, sensor: Box<dyn SensESPSensor>) -> &mut SignalKServer<New> {
+    pub fn attach<T: std::clone::Clone + Display + Send + Sync + 'static>(
+        &mut self,
+        mut sensor: Box<impl SensESPSensor + Attachable<T> + 'static>,
+    ) -> &mut SignalKServer<New> {
+        let mut attachable = sensor.attach();
+
+        let thread = std::thread::spawn(move || {
+            // Use a runtime to execute the async block
+            esp_idf_hal::task::block_on(async move {
+                loop {
+                    match attachable.next().await {
+                        Some(v) => info!("New value found: {}", v),
+                        None => warn!("No new value found."),
+                    };
+                }
+            });
+        });
+
+        self.subscribers.push(thread);
+
         self.sensors.push(sensor);
+
         self
     }
+
     pub fn init(
         self,
         server: &config::SignalKServerDetails,
@@ -89,11 +150,14 @@ impl SignalKServer<New> {
 
         //change this to subscribe=all to get flooded with all the server deltas on terminal :D
         let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server.hostname);
-        let mut _client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
+        let client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
             Self::handle_signalk_server_event(event)
         })?;
         Ok(SignalKServer::<Initialized> {
             sensors: self.sensors,
+            subscribers: self.subscribers,
+            device_name: server.sensor_name.clone(),
+            ws: Some(client),
             _wifi: self._wifi,
             status: PhantomData,
         })
@@ -101,29 +165,25 @@ impl SignalKServer<New> {
 }
 
 impl SignalKServer<Initialized> {
-    pub fn attach<T>(
-        &mut self,
-        sensor: Box<impl SensESPSensor + Attachable<T> + 'static>,
-    ) -> &mut SignalKServer<Initialized> {
-        self.sensors.push(sensor);
-
-        self
-    }
-
-    pub fn tick(mut self) -> SignalKServer<Running> {
-        for sensor in &mut self.sensors {
-            sensor.tick();
-        }
-        SignalKServer::<Running> {
+    pub fn tick(self) -> SignalKServer<Running> {
+        let mut running = SignalKServer::<Running> {
             sensors: self.sensors,
+            subscribers: self.subscribers,
+            ws: self.ws,
+            device_name: self.device_name,
             _wifi: self._wifi,
             status: PhantomData,
-        }
+        };
+        running.tick();
+        running
     }
 
     pub fn run(self) -> ! {
         let running = SignalKServer::<Running> {
             sensors: self.sensors,
+            subscribers: self.subscribers,
+            device_name: self.device_name,
+            ws: self.ws,
             _wifi: None,
             status: PhantomData,
         };
@@ -135,6 +195,7 @@ impl SignalKServer<Running> {
     pub fn run(mut self) -> ! {
         loop {
             self.tick();
+            std::thread::sleep(Duration::from_millis(50));
         }
     }
 
@@ -142,6 +203,15 @@ impl SignalKServer<Running> {
         for sensor in &mut self.sensors {
             sensor.tick();
         }
+        // for subscriber in &mut self.subscribers {
+        //     match subscriber.poll_next() {
+        //         Ok(val) => match val {
+        //             Some(i) => info!("New value found: {}", i),
+        //             None => warn!("No new value found."),
+        //         },
+        //         Err(e) => error!("Error polling subscriber: {:?}", e),
+        //     }
+        // }
         self
     }
 }

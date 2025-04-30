@@ -1,16 +1,19 @@
 #![feature(local_waker)]
+#![feature(never_type)]
 
 use anyhow::Result;
 use esp_idf_hal::prelude::Peripherals;
-use esp_idf_svc::{
-    eventloop::EspSystemEventLoop,
-    nvs::{EspDefaultNvsPartition, EspNvs},
-};
+use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
 use log::{error, info};
+use rand::prelude::*;
 use sensesp::{
-    signalk::{self, config::{SignalKConnection, SignalKServerDetails}, SignalKServer},
-    wifi::wifi,
+    sensor::TimedSensor,
+    signalk::{
+        self,
+        config::{SignalKConnection, SignalKServerDetails},
+    },
 };
+use std::time::Duration;
 use toml_cfg::toml_config;
 
 #[derive(Debug)]
@@ -24,7 +27,7 @@ pub struct Config {
     server_root: &'static str,
 }
 
-fn main() -> Result<()> {
+fn main() -> Result<!> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_svc::sys::link_patches();
@@ -60,10 +63,25 @@ fn main() -> Result<()> {
         modem: peripherals.modem,
     };
 
-    let details = SignalKServerDetails { hostname: app_config.server_root.to_string(), sensor_name: None };
+    let details = SignalKServerDetails {
+        hostname: app_config.server_root.to_string(),
+        sensor_name: None,
+    };
 
-    let server = signalk::new(config)?;
+    let mut server = signalk::new(config)?;
+
+    let digital_sensor = TimedSensor::new(
+        || {
+            let mut rng = rand::rng();
+            rng.random_range(0..=1)
+        },
+        Duration::from_millis(500),
+    );
+    dbg!("Connected.");
+    server.attach(Box::new(digital_sensor));
+    dbg!("Attached sensor.");
+
     let server = server.init(&details, nvs)?;
-
-    Ok(())
+    dbg!("Initialized server.");
+    server.run();
 }
