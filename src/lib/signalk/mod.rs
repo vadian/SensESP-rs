@@ -36,36 +36,36 @@ pub struct Running {}
 impl ServerState for Running {}
 
 pub fn new(
-        config: config::SignalKConnection,
-        server: &config::SignalKServerDetails,
-    ) -> Result<SignalKServer<New>> {
-        let wifi = match config {
-            config::SignalKConnection::ExistingWifi => None::<Box<EspWifi<'static>>>,
-            config::SignalKConnection::WifiPsk {
-                ssid,
-                password,
-                modem,
-            } => {
-                let sys_loop = EspSystemEventLoop::take()?;
+    config: config::SignalKConnection,
+    server: &config::SignalKServerDetails,
+) -> Result<SignalKServer<New>> {
+    let wifi = match config {
+        config::SignalKConnection::ExistingWifi => None::<Box<EspWifi<'static>>>,
+        config::SignalKConnection::WifiPsk {
+            ssid,
+            password,
+            modem,
+        } => {
+            let sys_loop = EspSystemEventLoop::take()?;
 
-                // Connect to the Wi-Fi network
-                let wifi = match wifi(&ssid, &password, modem, sys_loop, None) {
-                    Ok(inner) => inner,
-                    Err(err) => {
-                        error!("Could not connect to Wi-Fi network: {:?}", err);
-                        return Err(err);
-                    }
-                };
-                Some(wifi)
-            }
-            config::SignalKConnection::AccessPointConfigurable => todo!(),
-        };
-        Ok(SignalKServer::<New> {
-            _wifi: wifi,
-            sensors: vec![],
-            status: PhantomData,
-        })
-    }
+            // Connect to the Wi-Fi network
+            let wifi = match wifi(&ssid, &password, modem, sys_loop, None) {
+                Ok(inner) => inner,
+                Err(err) => {
+                    error!("Could not connect to Wi-Fi network: {:?}", err);
+                    return Err(err);
+                }
+            };
+            Some(wifi)
+        }
+        config::SignalKConnection::AccessPointConfigurable => todo!(),
+    };
+    Ok(SignalKServer::<New> {
+        _wifi: wifi,
+        sensors: vec![],
+        status: PhantomData,
+    })
+}
 
 impl SignalKServer<New> {
     pub fn attach(&mut self, sensor: Box<dyn SensESPSensor>) -> &mut SignalKServer<New> {
@@ -164,13 +164,12 @@ impl<T: ServerState> SignalKServer<T> {
                             })
                             .build(),
                     )
-                    .build());
+                    .build(),
+            );
 
             match client.send(
                 esp_idf_svc::ws::FrameType::Text(false),
-                serde_json::to_string(&
-                msg)?
-                .as_bytes(),
+                serde_json::to_string(&msg)?.as_bytes(),
             ) {
                 Ok(()) => info!("Successfully sent delta."),
                 Err(e) => error!("Error sending delta: {:?}", e),

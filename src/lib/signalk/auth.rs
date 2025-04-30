@@ -1,6 +1,6 @@
 use core::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use embedded_svc::{http::client::Client as HttpClient, io::Write, utils::io};
 use esp_idf_svc::http::client::EspHttpConnection;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
@@ -147,22 +147,27 @@ fn fetch_token(client: &mut HttpClient<EspHttpConnection>, server_root: &str) ->
                 info!("{:?}", response);
                 std::thread::sleep(Duration::from_secs(5));
                 continue;
-            },
+            }
             DeviceAccessState::COMPLETED => {
                 return match response.accessRequest {
                     Some(ar) => match ar.permission {
-                            Permission::APPROVED => match ar.token {
-                                Some(t) => Ok(t),
-                                None => Err(anyhow!("Access request approved but no token. This is out of spec.")),
-                            },
-                            Permission::DENIED => Err(anyhow!("Access request DENIED by the server. This is an explicit action, does a fishing buddy hate you?")),
+                        Permission::APPROVED => match ar.token {
+                            Some(t) => Ok(t),
+                            None => Err(anyhow!(
+                                "Access request approved but no token. This is out of spec."
+                            )),
                         },
-                    None => {
-                        Err(anyhow!("Access request state is COMPLETED without accessRequest section.
+                        Permission::DENIED => Err(anyhow!(
+                            "Access request DENIED by the server. This is an explicit action, does a fishing buddy hate you?"
+                        )),
+                    },
+                    None => Err(anyhow!(
+                        "Access request state is COMPLETED without accessRequest section.
 This happens when a request is pending and the same ClientId resubmits a request, 
-rather than referencing by href.  Deny the previous request in the GUI Admin panel.\n{:?}", &response))
-                    }
-                }
+rather than referencing by href.  Deny the previous request in the GUI Admin panel.\n{:?}",
+                        &response
+                    )),
+                };
             }
         }
     }

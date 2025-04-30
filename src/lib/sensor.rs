@@ -1,4 +1,4 @@
-use eyeball::{shared::Observable, Subscriber};
+use eyeball::{Subscriber, shared::Observable};
 use std::time::{Duration, SystemTime};
 
 pub trait SensESPSensor {

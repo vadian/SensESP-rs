@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
 use log::info;
@@ -43,7 +43,7 @@ fn main() -> Result<()> {
         app_config.wifi_psk,
         peripherals.modem,
         sysloop,
-        None
+        None,
     ) {
         Ok(inner) => inner,
         Err(err) => {
