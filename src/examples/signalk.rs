@@ -6,7 +6,7 @@ use esp_idf_hal::prelude::Peripherals;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
 use log::{error, info};
 use sensesp::{
-    sensor::TimedSensor,
+    sensor::{ConstantSensor, TimedSensor},
     signalk::{
         self,
         config::{SignalKConnection, SignalKServerDetails},
@@ -83,9 +83,34 @@ fn main() -> Result<!> {
         Duration::from_millis(500),
         Some("navigation.waterline.aboveDeck".to_string()),
     );
-    dbg!("Connected.");
+
     server.attach(Box::new(digital_sensor))?;
     dbg!("Attached sensor.");
+
+    let digital_sensor = TimedSensor::new(
+        move || {
+            (std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                % 10000) as i32 * -1
+        },
+        Duration::from_millis(2000),
+        Some("navigation.distanceToWaypoint".to_string()),
+    );
+
+    server.attach(Box::new(digital_sensor))?;
+    dbg!("Attached sensor.");
+
+    let digital_sensor = ConstantSensor::new(42,
+        Duration::from_millis(5000),
+        Some("engine.levels.caffeine"),
+    );
+
+    server.attach(Box::new(digital_sensor))?;
+    dbg!("Attached sensor.");
+
+    
 
     server.run();
 }

@@ -32,6 +32,7 @@ pub struct SignalKServer<T: ServerState> {
     device_name: Option<String>,
     _wifi: Option<Box<EspWifi<'static>>>,
     ws: Option<Arc<Mutex<EspWebSocketClient<'static>>>>,
+    ws_in: Option<EspWebSocketClient<'static>>,
     status: PhantomData<T>,
 }
 
@@ -70,6 +71,7 @@ pub fn new(config: config::SignalKConnection) -> Result<SignalKServer<New>> {
         subscribers: vec![],
         device_name: None,
         ws: None,
+        ws_in: None,
         _wifi: wifi,
         status: PhantomData,
     })
@@ -90,17 +92,24 @@ impl SignalKServer<New> {
         let config = EspWebSocketClientConfig {
             crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
             headers: Some(token.as_str()),
+            task_prio: 1,
+            task_stack: 8192,
             ..Default::default()
         };
         let timeout = Duration::from_secs(10);
 
-        //change this to subscribe=all to get flooded with all the server deltas on terminal :D
-        let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server.hostname);
-        let client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
-            Self::handle_signalk_server_event(event)
+        let url = format!("ws://{}/signalk/v1/stream?subscribe=none", server.hostname);
+        let client = EspWebSocketClient::new(url.as_str(), &config, timeout,  move |event| {
+            Self::handle_signalk_server_event("SENDER", event)
         })?;
+        
+        let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server.hostname);
+        let listener = EspWebSocketClient::new(&url, &config, timeout, move |event| {
+            Self::handle_signalk_server_event("RECVR", event)
+        })?;
+
         while !client.is_connected() {
-            info!("Waiting for websocket connection...");
+            info!("Waiting for websocket client connection...");
             std::thread::sleep(Duration::from_millis(100));
         }
         let client = Arc::new(Mutex::new(client));
@@ -110,6 +119,7 @@ impl SignalKServer<New> {
             subscribers: self.subscribers,
             device_name: server.sensor_name.clone(),
             ws: Some(client),
+            ws_in: Some(listener),
             _wifi: self._wifi,
             status: PhantomData,
         })
@@ -169,6 +179,7 @@ impl SignalKServer<Initialized> {
             sensors: self.sensors,
             subscribers: self.subscribers,
             ws: self.ws,
+            ws_in: self.ws_in,
             device_name: self.device_name,
             _wifi: self._wifi,
             status: PhantomData,
@@ -183,6 +194,7 @@ impl SignalKServer<Initialized> {
             subscribers: self.subscribers,
             device_name: self.device_name,
             ws: self.ws,
+            ws_in: self.ws_in,
             _wifi: None,
             status: PhantomData,
         };
@@ -207,48 +219,48 @@ impl SignalKServer<Running> {
 }
 
 impl<T: ServerState> SignalKServer<T> {
-    fn handle_signalk_server_event(event: &Result<WebSocketEvent, EspIOError>) {
+    fn handle_signalk_server_event(name: &str, event: &Result<WebSocketEvent, EspIOError>) {
         match event {
             Ok(event) => match event.event_type {
                 WebSocketEventType::BeforeConnect => {
-                    info!("Websocket before connect");
+                    info!("{name}: Websocket before connect");
                 }
                 WebSocketEventType::Connected => {
-                    info!("Websocket connected");
+                    info!("{name}: Websocket connected");
                 }
                 WebSocketEventType::Disconnected => {
-                    info!("Websocket disconnected");
+                    info!("{name}: Websocket disconnected");
                 }
                 WebSocketEventType::Close(reason) => {
-                    info!("Websocket close, reason: {reason:?}");
+                    info!("{name}: Websocket close, reason: {reason:?}");
                 }
                 WebSocketEventType::Closed => {
-                    info!("Websocket closed");
+                    info!("{name}: Websocket closed");
                     //tx.send(ExampleEvent::Closed).ok();
                 }
                 WebSocketEventType::Text(text) => {
-                    info!("Websocket recv, text: {text}");
+                    info!("{name}: Websocket recv, text: {text}");
                 }
                 WebSocketEventType::Binary(binary) => {
-                    info!("Websocket recv, binary: {binary:?}");
+                    info!("{name}: Websocket recv, binary: {binary:?}");
                     let text = match str::from_utf8(binary) {
                         Ok(t) => Some(t),
                         Err(e) => {
-                            warn!("Unable to parse binary to ascii: {e:?}");
+                            warn!("{name}: Unable to parse binary to ascii: {e:?}");
                             None
                         }
                     };
-                    info!("Parsed binary: {text:?}")
+                    info!("{name}: Parsed binary: {text:?}")
                 }
                 WebSocketEventType::Ping => {
-                    info!("Websocket ping");
+                    info!("{name}: Websocket ping");
                 }
                 WebSocketEventType::Pong => {
-                    info!("Websocket pong");
+                    info!("{name}: Websocket pong");
                 }
             },
             Err(e) => {
-                error!("Error handling websocket event: {:?}", e);
+                error!("{name}: Error handling websocket event: {:?}", e);
             }
         }
     }
