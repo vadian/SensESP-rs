@@ -1,5 +1,4 @@
 #![feature(local_waker)]
-#![feature(noop_waker)]
 use std::task::Poll::{Pending, Ready};
 use std::task::Waker;
 use std::task::{ContextBuilder, LocalWaker};
@@ -11,16 +10,6 @@ use esp_idf_hal::prelude::Peripherals;
 use sensesp::application::Application;
 use sensesp::sensor::{Attachable, ConstantSensor, TimedSensor};
 use smol::stream::StreamExt;
-use toml_cfg::toml_config;
-
-#[derive(Debug)]
-#[toml_config]
-pub struct Config {
-    #[default("")]
-    wifi_ssid: &'static str,
-    #[default("")]
-    wifi_psk: &'static str,
-}
 
 fn main() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -35,7 +24,7 @@ fn main() -> Result<()> {
     //power pin
     PinDriver::output(peripherals.pins.gpio4)?.set_high()?;
 
-    let mut constant_sensor = ConstantSensor::new(42, Duration::from_secs(2));
+    let mut constant_sensor = ConstantSensor::new(42, Duration::from_secs(2), None);
     let mut constant_subscriber = constant_sensor.attach();
 
     let digital_input = PinDriver::input(peripherals.pins.gpio18)?;
@@ -47,6 +36,7 @@ fn main() -> Result<()> {
             esp_idf_hal::gpio::Level::High => false,
         },
         Duration::from_millis(500),
+        None,
     );
 
     let mut digital_subscriber = digital_sensor.attach();
@@ -58,8 +48,8 @@ fn main() -> Result<()> {
         let local_waker = LocalWaker::noop();
         let waker = Waker::noop();
 
-        let mut cx = ContextBuilder::from_waker(&waker)
-            .local_waker(&local_waker)
+        let mut cx = ContextBuilder::from_waker(waker)
+            .local_waker(local_waker)
             .build();
         loop {
             match constant_subscriber.poll_next(&mut cx) {

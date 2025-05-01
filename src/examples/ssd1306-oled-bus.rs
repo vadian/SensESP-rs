@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use esp_idf_hal::gpio::PinDriver;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
@@ -6,19 +6,19 @@ use sensesp::i2c::I2CDisplayInterface;
 use sensesp::wifi::wifi;
 use toml_cfg::toml_config;
 
-use esp_idf_svc::hal::i2c::config;
 use esp_idf_svc::hal::i2c::I2cDriver;
+use esp_idf_svc::hal::i2c::config;
 
 use core::cell::RefCell;
 use embedded_hal_bus::i2c as i2c_bus;
 
 use embedded_graphics::{
-    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    mono_font::{MonoTextStyleBuilder, ascii::FONT_6X10},
     pixelcolor::BinaryColor,
     prelude::*,
     text::{Baseline, Text},
 };
-use ssd1306::{prelude::*, Ssd1306};
+use ssd1306::{Ssd1306, prelude::*};
 
 #[derive(Debug)]
 #[toml_config]
@@ -99,6 +99,7 @@ fn main() -> Result<()> {
         app_config.wifi_psk,
         peripherals.modem,
         sysloop,
+        None,
     ) {
         Ok(inner) => inner,
         Err(err) => {
