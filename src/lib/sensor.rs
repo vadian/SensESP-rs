@@ -123,12 +123,13 @@ where
         let now = SystemTime::now();
 
         match now.duration_since(self.last_measurement) {
-            Ok(d) => if d >= self.duration {
-                let val = (self.func)();
-                self.observable.set(val);
-                self.last_measurement = now;
-                
-            },
+            Ok(d) => {
+                if d >= self.duration {
+                    let val = (self.func)();
+                    self.observable.set(val);
+                    self.last_measurement = now;
+                }
+            }
             Err(e) => log::error!("System time error on SensESP-rs tick: {:?}", e),
         }
     }

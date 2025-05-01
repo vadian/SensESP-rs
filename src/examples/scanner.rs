@@ -751,10 +751,7 @@ fn lookup(addr: u8) {
     for addresses in &I2C_SCANNER_KNOWN_DEVICES {
         for a in addresses.2 {
             if addr == *a {
-                println!(
-                    "  {}:  {}",
-                    addresses.0, addresses.1
-                );
+                println!("  {}:  {}", addresses.0, addresses.1);
             }
         }
     }

@@ -6,6 +6,7 @@ use esp_idf_svc::http::client::EspHttpConnection;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use signalk::definitions::V1DateTime;
 
 #[allow(non_snake_case)]
@@ -260,6 +261,18 @@ fn get_access_request_status(
     Ok(response)
 }
 
+#[derive(Serialize)]
+struct ValidationRequest {
+    #[serde(rename = "requestId")]
+    id: String,
+    validate: Validation,
+}
+
+#[derive(Serialize)]
+struct Validation {
+    token: String,
+}
+
 fn validate_token(
     client: &mut HttpClient<EspHttpConnection>,
     server_root: &str,
@@ -269,7 +282,14 @@ fn validate_token(
 
     let bearer = format!("Bearer {}", token);
 
-    let content = "";
+    let content = json!(ValidationRequest {
+        id: "31337-400432-6317832".to_string(),
+        validate: Validation {
+            token: token.to_string(),
+        },
+    })
+    .to_string();
+
     let content_length_header: String = format!("{}", content.len());
 
     let headers = [
@@ -298,6 +318,10 @@ fn validate_token(
         200 => {
             info!("Connection pending, status request received");
             status
+        }
+        400 => {
+            info!("400 error, as yet unknown, code: {}", status);
+            400
         }
         404 => {
             info!("404? I think that's a completed but pending connection");

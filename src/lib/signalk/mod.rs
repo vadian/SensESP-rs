@@ -13,6 +13,7 @@ use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use esp_idf_svc::wifi::EspWifi;
+use esp_idf_svc::ws::FrameType;
 use esp_idf_svc::ws::client::{
     EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
 };
@@ -143,40 +144,8 @@ impl SignalKServer<Initialized> {
                             Some(v) => {
                                 info!("New value found: {}", v);
                                 if let Some(ws) = &ws {
-                                    let update = V1UpdateTypeBuilder::default()
-                                        .source(
-                                            V1DefSource::builder()
-                                                .label(device_name.clone())
-                                                .build(),
-                                        )
-                                        .add_update(V1UpdateValue {
-                                            path: name.clone(),
-                                            value: json!(v),
-                                        })
-                                        .build();
-                                    let msg = SignalKStreamMessage::Delta(
-                                        V1DeltaFormatBuilder::default()
-                                            .context("self".to_string())
-                                            .add_update(update)
-                                            .build(),
-                                    );
-
-                                    let data = serde_json::to_string(&msg)
-                                        .unwrap_or("SerializationFail".to_string());
-
-                                    {
-                                        info!("Sending data: {:?}", data);
-
-                                        let mut client = ws.lock().unwrap();
-
-                                        match client.send(
-                                            esp_idf_svc::ws::FrameType::Text(false),
-                                            data.as_bytes(),
-                                        ) {
-                                            Ok(()) => info!("Successfully sent delta."),
-                                            Err(e) => error!("Error sending delta: {:?}", e),
-                                        }
-                                    }
+                                    let msg = create_message(device_name.clone(), name.clone(), v);
+                                    let _ = send_message(ws.clone(), msg).await;
                                 } else {
                                     warn!("No websocket client available.");
                                 }
@@ -282,5 +251,44 @@ impl<T: ServerState> SignalKServer<T> {
                 error!("Error handling websocket event: {:?}", e);
             }
         }
+    }
+}
+
+fn create_message<T: std::clone::Clone + Display + Serialize>(
+    device_name: String,
+    name: String,
+    value: T,
+) -> SignalKStreamMessage {
+    let update = V1UpdateTypeBuilder::default()
+        .source(V1DefSource::builder().label(device_name.clone()).build())
+        .add_update(V1UpdateValue {
+            path: name.clone(),
+            value: json!(value),
+        })
+        .build();
+    let msg = SignalKStreamMessage::Delta(
+        V1DeltaFormatBuilder::default()
+            .context("self".to_string())
+            .add_update(update)
+            .build(),
+    );
+    msg
+}
+
+async fn send_message(
+    ws: Arc<Mutex<EspWebSocketClient<'static>>>,
+    msg: SignalKStreamMessage,
+) -> Result<()> {
+    let data = serde_json::to_string(&msg).unwrap_or("SerializationFail".to_string());
+    info!("Sending data: {:?}", data);
+    {
+        let mut client = ws.lock().unwrap();
+
+        let res = client.send(FrameType::Text(false), data.as_bytes());
+        match res {
+            Ok(()) => info!("Successfully sent delta."),
+            Err(e) => error!("Error sending delta: {:?}", e),
+        }
+        Ok(res?)
     }
 }
