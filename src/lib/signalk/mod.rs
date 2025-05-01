@@ -178,7 +178,7 @@ impl SignalKServer<Initialized> {
                                     )
                                     .add_update(V1UpdateValue {
                                         path: name.clone(),
-                                        value: json!(0.5),
+                                        value: json!(v),
                                     })
                                     .build();
                                 let msg = SignalKStreamMessage::Delta(

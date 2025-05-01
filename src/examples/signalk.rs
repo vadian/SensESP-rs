@@ -82,7 +82,7 @@ fn main() -> Result<!> {
                 % 100
         },
         Duration::from_millis(500),
-        None,
+        Some("navigation.velocityMadeGood".to_string()),
     );
     dbg!("Connected.");
     server.attach(Box::new(digital_sensor));
