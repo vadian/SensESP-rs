@@ -54,7 +54,7 @@ const TOKEN_NAME: &str = "signalk_token";
 pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<String> {
     let mut buf = [0u8; 1024];
     let token = match nvs {
-        Some(ref n) => match n.get_blob(&TOKEN_NAME, &mut buf) {
+        Some(ref n) => match n.get_blob(TOKEN_NAME, &mut buf) {
             Ok(b) => match b {
                 Some(u) => match String::from_utf8(u.to_vec()) {
                     Ok(s) => Some(s),
@@ -113,7 +113,7 @@ pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> R
             Ok(t) => {
                 info!("Success: {}", t);
                 match nvs {
-                    Some(mut n) => match n.set_blob(&TOKEN_NAME, t.as_bytes()) {
+                    Some(mut n) => match n.set_blob(TOKEN_NAME, t.as_bytes()) {
                         Ok(()) => {
                             info!("Successfully stored token");
                         }
@@ -334,5 +334,5 @@ fn parse_response_string(
         }
     };
 
-    return Ok(String::from(body_string));
+    Ok(String::from(body_string))
 }

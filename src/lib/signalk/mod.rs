@@ -16,14 +16,11 @@ use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::ws::client::{
     EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
 };
-use eyeball::Subscriber;
 use log::{error, info, warn};
-use mpu6050::device;
 use serde::Serialize;
 use serde_json::json;
 use signalk::delta::{V1DeltaFormatBuilder, V1UpdateTypeBuilder};
 use signalk::{SignalKStreamMessage, V1DefSource, V1UpdateValue};
-use smol::lock::MutexGuardArc;
 
 pub mod auth;
 pub mod config;
@@ -35,37 +32,6 @@ pub struct SignalKServer<T: ServerState> {
     _wifi: Option<Box<EspWifi<'static>>>,
     ws: Option<Arc<Mutex<EspWebSocketClient<'static>>>>,
     status: PhantomData<T>,
-}
-
-trait ValueGetter<T: Copy> {
-    fn get(&self) -> T;
-}
-
-pub struct SensorSubcriber<T: Copy> {
-    subscriber: Subscriber<T>,
-    sensor: Box<dyn SensESPSensor>,
-    last_value: T,
-}
-impl<T: Copy + Default> SensorSubcriber<T> {
-    pub fn new(sensor: Box<dyn SensESPSensor>, subscriber: Subscriber<T>) -> Self {
-        SensorSubcriber {
-            sensor,
-            subscriber,
-            last_value: Default::default(),
-        }
-    }
-
-    // pub fn poll_next(&mut self) -> Result<Option<T>, EspIOError> {
-    //     self.subscriber.poll_next()
-    // }
-}
-impl<T> ValueGetter<T> for SensorSubcriber<T>
-where
-    T: Copy,
-{
-    fn get(&self) -> T {
-        self.subscriber.get()
-    }
 }
 
 pub trait ServerState {}
@@ -133,6 +99,8 @@ impl SignalKServer<New> {
             Self::handle_signalk_server_event(event)
         })?;
         let client = Arc::new(Mutex::new(client));
+        //allow the client to fully initialize
+        std::thread::sleep(Duration::from_millis(100));
         Ok(SignalKServer::<Initialized> {
             sensors: self.sensors,
             subscribers: self.subscribers,
@@ -148,70 +116,80 @@ impl SignalKServer<Initialized> {
     pub fn attach<T: std::clone::Clone + Display + Serialize + Send + Sync + 'static>(
         &mut self,
         mut sensor: Box<impl SensESPSensor + NamedSensor + Attachable<T> + 'static>,
-    ) -> &mut SignalKServer<Initialized> {
+    ) -> Result<()> {
         let mut attachable = sensor.attach();
         let name = sensor.name();
-        let mut device_name = self
+        let device_name = self
             .device_name
             .clone()
             .unwrap_or("Basic SensESP-rs Sensor example".to_string());
-        let mut ws = if let Some(ws) = &self.ws {
+        let ws = if let Some(ws) = &self.ws {
             Some(ws.clone())
         } else {
             warn!("No websocket client available when attaching.");
             None
         };
 
-        let thread = std::thread::spawn(move || {
-            // Use a runtime to execute the async block
-            esp_idf_hal::task::block_on(async move {
-                loop {
-                    match attachable.next().await {
-                        Some(v) => {
-                            info!("New value found: {}", v);
-                            if let Some(ws) = &ws {
-                                let mut client = ws.lock().unwrap();
+        let thread = std::thread::Builder::new()
+            .stack_size(8192)
+            .spawn(move || {
+                // Use a runtime to execute the async block
+                esp_idf_hal::task::block_on(async move {
+                    loop {
+                        match attachable.next().await {
+                            Some(v) => {
+                                info!("New value found: {}", v);
+                                if let Some(ws) = &ws {
+                                    let update = V1UpdateTypeBuilder::default()
+                                        .source(
+                                            V1DefSource::builder()
+                                                .label(device_name.clone())
+                                                .build(),
+                                        )
+                                        .add_update(V1UpdateValue {
+                                            path: name.clone(),
+                                            value: json!(v),
+                                        })
+                                        .build();
+                                    let msg = SignalKStreamMessage::Delta(
+                                        V1DeltaFormatBuilder::default()
+                                            .context("self".to_string())
+                                            .add_update(update)
+                                            .build(),
+                                    );
 
-                                let update = V1UpdateTypeBuilder::default()
-                                    .source(
-                                        V1DefSource::builder().label(device_name.clone()).build(),
-                                    )
-                                    .add_update(V1UpdateValue {
-                                        path: name.clone(),
-                                        value: json!(v),
-                                    })
-                                    .build();
-                                let msg = SignalKStreamMessage::Delta(
-                                    V1DeltaFormatBuilder::default()
-                                        .context("self".to_string())
-                                        .add_update(update)
-                                        .build(),
-                                );
+                                    let data = serde_json::to_string(&msg)
+                                        .unwrap_or("SerializationFail".to_string());
 
-                                match client.send(
-                                    esp_idf_svc::ws::FrameType::Text(false),
-                                    serde_json::to_string(&msg)
-                                        .unwrap_or("SerializationFail".to_string())
-                                        .as_bytes(),
-                                ) {
-                                    Ok(()) => info!("Successfully sent delta."),
-                                    Err(e) => error!("Error sending delta: {:?}", e),
+                                    {
+                                        info!("Sending data: {:?}", data);
+
+                                        let mut client = ws.lock().unwrap();
+
+                                        match client.send(
+                                            esp_idf_svc::ws::FrameType::Text(false),
+                                            data.as_bytes(),
+                                        ) {
+                                            Ok(()) => info!("Successfully sent delta."),
+                                            Err(e) => error!("Error sending delta: {:?}", e),
+                                        }
+                                    }
+                                } else {
+                                    warn!("No websocket client available.");
                                 }
-                            } else {
-                                warn!("No websocket client available.");
                             }
-                        }
-                        None => warn!("No new value found."),
-                    };
-                }
-            });
-        });
+                            None => warn!("No new value found."),
+                        };
+                        std::thread::sleep(Duration::from_millis(25));
+                    }
+                });
+            })?;
 
         self.subscribers.push(thread);
 
         self.sensors.push(sensor);
 
-        self
+        Ok(())
     }
 
     pub fn tick(self) -> SignalKServer<Running> {
@@ -252,72 +230,11 @@ impl SignalKServer<Running> {
         for sensor in &mut self.sensors {
             sensor.tick();
         }
-        // for subscriber in &mut self.subscribers {
-        //     match subscriber.poll_next() {
-        //         Ok(val) => match val {
-        //             Some(i) => info!("New value found: {}", i),
-        //             None => warn!("No new value found."),
-        //         },
-        //         Err(e) => error!("Error polling subscriber: {:?}", e),
-        //     }
-        // }
         self
     }
 }
 
 impl<T: ServerState> SignalKServer<T> {
-    pub fn signalk_server(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<!> {
-        //get info from signalk api
-        let token = get_token(server_root, nvs)?;
-
-        let token = format!("Authorization: Bearer {}\r\n", token);
-
-        // Connect websocket
-        let config = EspWebSocketClientConfig {
-            crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
-            headers: Some(token.as_str()),
-            ..Default::default()
-        };
-        let timeout = Duration::from_secs(10);
-
-        //change this to subscribe=all to get flooded with all the server deltas on terminal :D
-        let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server_root);
-        let mut client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
-            Self::handle_signalk_server_event(event)
-        })?;
-
-        loop {
-            std::thread::sleep(Duration::from_millis(2000));
-
-            let msg = SignalKStreamMessage::Delta(
-                V1DeltaFormatBuilder::default()
-                    .context("self".to_string())
-                    .add_update(
-                        V1UpdateTypeBuilder::default()
-                            .source(
-                                V1DefSource::builder()
-                                    .label("Basic SensESP-rs Sensor example".to_string())
-                                    .build(),
-                            )
-                            .add_update(V1UpdateValue {
-                                path: "navigation.speedOverGround".to_string(),
-                                value: json!(7.85),
-                            })
-                            .build(),
-                    )
-                    .build(),
-            );
-
-            match client.send(
-                esp_idf_svc::ws::FrameType::Text(false),
-                serde_json::to_string(&msg)?.as_bytes(),
-            ) {
-                Ok(()) => info!("Successfully sent delta."),
-                Err(e) => error!("Error sending delta: {:?}", e),
-            }
-        }
-    }
-
     fn handle_signalk_server_event(event: &Result<WebSocketEvent, EspIOError>) {
         match event {
             Ok(event) => match event.event_type {

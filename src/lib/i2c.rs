@@ -6,7 +6,7 @@ pub struct I2CDisplayInterface(());
 
 impl I2CDisplayInterface {
     /// Create new builder with a default I2C address of 0x3C
-    pub fn new<I>(i2c: I) -> I2CInterface<I>
+    pub fn create<I>(i2c: I) -> I2CInterface<I>
     where
         I: I2c,
     {

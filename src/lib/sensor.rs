@@ -40,14 +40,12 @@ impl<T: Copy> SensESPSensor for ConstantSensor<T> {
         let now = SystemTime::now();
 
         match now.duration_since(self.last_measurement) {
-            Ok(d) => match d >= self.duration {
-                true => {
+            Ok(d) => {
+                if d >= self.duration {
                     self.observable.set(self.value);
                     self.last_measurement = now;
-                    ()
                 }
-                false => (),
-            },
+            }
             Err(e) => log::error!("System time error on SensESP-rs tick: {:?}", e),
         }
     }
@@ -125,14 +123,11 @@ where
         let now = SystemTime::now();
 
         match now.duration_since(self.last_measurement) {
-            Ok(d) => match d >= self.duration {
-                true => {
-                    let val = (self.func)();
-                    self.observable.set(val);
-                    self.last_measurement = now;
-                    ()
-                }
-                false => (),
+            Ok(d) => if d >= self.duration {
+                let val = (self.func)();
+                self.observable.set(val);
+                self.last_measurement = now;
+                
             },
             Err(e) => log::error!("System time error on SensESP-rs tick: {:?}", e),
         }

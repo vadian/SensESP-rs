@@ -63,12 +63,12 @@ fn main() -> Result<()> {
     let i2c_ref_cell = RefCell::new(i2c);
 
     log::info!("Creating Display interface...");
-    let interface = I2CDisplayInterface::new(i2c_bus::RefCellDevice::new(&i2c_ref_cell));
+    let interface = I2CDisplayInterface::create(i2c_bus::RefCellDevice::new(&i2c_ref_cell));
     let mut display1 = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
     display1.init().unwrap();
 
-    let interface = I2CDisplayInterface::new(i2c_bus::RefCellDevice::new(&i2c_ref_cell));
+    let interface = I2CDisplayInterface::create(i2c_bus::RefCellDevice::new(&i2c_ref_cell));
     let mut display2 = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
     display2.init().unwrap();
