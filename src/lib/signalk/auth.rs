@@ -52,7 +52,11 @@ enum DeviceAccessState {
 
 const TOKEN_NAME: &str = "signalk_token";
 
-pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<String> {
+pub(crate) fn get_token(
+    device_name: Option<String>,
+    server_root: &str,
+    nvs: Option<EspNvs<NvsDefault>>,
+) -> Result<String> {
     let mut buf = [0u8; 1024];
     let token = match nvs {
         Some(ref n) => match n.get_blob(TOKEN_NAME, &mut buf) {
@@ -110,7 +114,7 @@ pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> R
 
     match token {
         Some(t) => Ok(t),
-        None => match fetch_token(&mut client, server_root) {
+        None => match fetch_token(&mut client, device_name, server_root) {
             Ok(t) => {
                 info!("Success: {}", t);
                 match nvs {
@@ -136,8 +140,12 @@ pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> R
     }
 }
 
-fn fetch_token(client: &mut HttpClient<EspHttpConnection>, server_root: &str) -> Result<String> {
-    let response = post_access_request(client, server_root)?;
+fn fetch_token(
+    client: &mut HttpClient<EspHttpConnection>,
+    device_name: Option<String>,
+    server_root: &str,
+) -> Result<String> {
+    let response = post_access_request(client, device_name, server_root)?;
 
     //loop until we complete
     loop {
@@ -176,11 +184,12 @@ rather than referencing by href.  Deny the previous request in the GUI Admin pan
 
 fn post_access_request(
     client: &mut HttpClient<EspHttpConnection>,
+    device_name: Option<String>,
     server_root: &str,
 ) -> Result<DeviceAccessResponse> {
     let payload: DeviceAccessRequest = DeviceAccessRequest {
         clientId: "31337-400432-6317832".to_string(),
-        description: "Basic SensESP-rs Sensor example".to_string(),
+        description: device_name.unwrap_or("Basic SensESP-rs Sensor example".to_string()),
     };
 
     let json = match serde_json::to_string(&payload) {

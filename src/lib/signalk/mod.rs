@@ -82,7 +82,7 @@ impl SignalKServer<New> {
         nvs: Option<EspNvs<NvsDefault>>,
     ) -> Result<SignalKServer<Initialized>> {
         //get info from signalk api
-        let token = get_token(&server.hostname, nvs)?;
+        let token = get_token(server.sensor_name.clone(), &server.hostname, nvs)?;
 
         let token = format!("Authorization: Bearer {}\r\n", token);
 
@@ -281,14 +281,14 @@ async fn send_message(
 ) -> Result<()> {
     let data = serde_json::to_string(&msg).unwrap_or("SerializationFail".to_string());
     info!("Sending data: {:?}", data);
+    let res;
     {
         let mut client = ws.lock().unwrap();
-
-        let res = client.send(FrameType::Text(false), data.as_bytes());
-        match res {
-            Ok(()) => info!("Successfully sent delta."),
-            Err(e) => error!("Error sending delta: {:?}", e),
-        }
-        Ok(res?)
+        res = client.send(FrameType::Text(false), data.as_bytes());
     }
+    match res {
+        Ok(()) => info!("Successfully sent delta."),
+        Err(e) => error!("Error sending delta: {:?}", e),
+    }
+    Ok(res?)
 }

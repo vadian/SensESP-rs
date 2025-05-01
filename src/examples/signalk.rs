@@ -64,7 +64,7 @@ fn main() -> Result<!> {
 
     let details = SignalKServerDetails {
         hostname: app_config.server_root.to_string(),
-        sensor_name: None,
+        sensor_name: "Waterline Height over Deck Sensor".to_string().into(),
     };
 
     let server = signalk::new(config)?;
@@ -74,14 +74,14 @@ fn main() -> Result<!> {
 
     let digital_sensor = TimedSensor::new(
         move || {
-            std::time::SystemTime::now()
+            (std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
-                % 100
+                % 100) as i32 - 50
         },
         Duration::from_millis(500),
-        Some("navigation.velocityMadeGood".to_string()),
+        Some("navigation.waterline.aboveDeck".to_string()),
     );
     dbg!("Connected.");
     server.attach(Box::new(digital_sensor))?;
