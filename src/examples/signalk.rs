@@ -5,7 +5,7 @@ use anyhow::Result;
 use esp_idf_hal::prelude::Peripherals;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
 use log::{error, info};
-use rand::prelude::*;
+use rand::{prelude::*, TryRngCore};
 use sensesp::{
     sensor::TimedSensor,
     signalk::{
@@ -13,7 +13,7 @@ use sensesp::{
         config::{SignalKConnection, SignalKServerDetails},
     },
 };
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use toml_cfg::toml_config;
 
 #[derive(Debug)]
@@ -68,20 +68,25 @@ fn main() -> Result<!> {
         sensor_name: None,
     };
 
-    let mut server = signalk::new(config)?;
+    let server = signalk::new(config)?;
+    dbg!("Created server.");
+    let mut server = server.init(&details, nvs)?;
+    dbg!("Initialized server.");
 
     let digital_sensor = TimedSensor::new(
-        || {
-            let mut rng = rand::rng();
-            rng.random_range(0..=1)
+         move || {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                % 100
         },
         Duration::from_millis(500),
+        None,
     );
     dbg!("Connected.");
     server.attach(Box::new(digital_sensor));
     dbg!("Attached sensor.");
 
-    let server = server.init(&details, nvs)?;
-    dbg!("Initialized server.");
     server.run();
 }

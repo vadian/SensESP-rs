@@ -24,7 +24,7 @@ fn main() -> Result<()> {
     //power pin
     PinDriver::output(peripherals.pins.gpio4)?.set_high()?;
 
-    let mut constant_sensor = ConstantSensor::new(42, Duration::from_secs(2));
+    let mut constant_sensor = ConstantSensor::new(42, Duration::from_secs(2), None);
     let mut constant_subscriber = constant_sensor.attach();
 
     let digital_input = PinDriver::input(peripherals.pins.gpio18)?;
@@ -36,6 +36,7 @@ fn main() -> Result<()> {
             esp_idf_hal::gpio::Level::High => false,
         },
         Duration::from_millis(500),
+        None,
     );
 
     let mut digital_subscriber = digital_sensor.attach();

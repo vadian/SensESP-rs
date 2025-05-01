@@ -5,11 +5,16 @@ pub trait SensESPSensor {
     fn tick(&mut self);
 }
 
+pub trait NamedSensor {
+    fn name(&self) -> String;
+}
+
 pub trait Attachable<T> {
     fn attach(&mut self) -> Subscriber<T>;
 }
 
 pub struct ConstantSensor<T> {
+    path: String,
     observable: Observable<T>,
     duration: Duration,
     last_measurement: SystemTime,
@@ -17,11 +22,12 @@ pub struct ConstantSensor<T> {
 }
 
 impl<T: Copy> ConstantSensor<T> {
-    pub fn new(val: T, duration: Duration) -> Self {
+    pub fn new(val: T, duration: Duration, path: Option<&str>) -> Self {
         let observable = Observable::new(val);
         let last_measurement = SystemTime::now();
         ConstantSensor::<T> {
             observable,
+            path: path.unwrap_or("constant_sensor").to_string(),
             value: val,
             duration,
             last_measurement,
@@ -53,12 +59,19 @@ impl<T: Copy> Attachable<T> for ConstantSensor<T> {
     }
 }
 
+impl<T> NamedSensor for ConstantSensor<T> {
+    fn name(&self) -> String {
+        self.path.clone()
+    }
+}
+
 pub struct TimedSensor<T, F>
 where
     T: Copy,
     F: Fn() -> T,
 {
     observable: Observable<T>,
+    path: String,
     duration: Duration,
     last_measurement: SystemTime,
     func: F,
@@ -69,12 +82,13 @@ where
     T: Copy,
     F: Fn() -> T,
 {
-    pub fn new(func: F, duration: Duration) -> Self {
+    pub fn new(func: F, duration: Duration, path: Option<String>) -> Self {
         let val = func();
         let observable = Observable::new(val.to_owned());
         let last_measurement = SystemTime::now() - duration;
         TimedSensor::<T, F> {
             observable,
+            path: path.unwrap_or("timed_sensor".to_string()),
             func,
             duration,
             last_measurement,
@@ -89,6 +103,16 @@ where
 {
     fn attach(&mut self) -> Subscriber<T> {
         self.observable.subscribe()
+    }
+}
+
+impl<T, F> NamedSensor for TimedSensor<T, F>
+where
+    T: Copy,
+    F: Fn() -> T,
+{
+    fn name(&self) -> String {
+        self.path.clone()
     }
 }
 
