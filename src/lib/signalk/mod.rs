@@ -98,9 +98,12 @@ impl SignalKServer<New> {
         let client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
             Self::handle_signalk_server_event(event)
         })?;
+        while !client.is_connected() {
+            info!("Waiting for websocket connection...");
+            std::thread::sleep(Duration::from_millis(100));
+        }
         let client = Arc::new(Mutex::new(client));
-        //allow the client to fully initialize
-        std::thread::sleep(Duration::from_millis(100));
+
         Ok(SignalKServer::<Initialized> {
             sensors: self.sensors,
             subscribers: self.subscribers,
