@@ -78,7 +78,8 @@ fn main() -> Result<!> {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
-                % 100) as i32 - 50
+                % 100) as i32
+                - 50
         },
         Duration::from_millis(500),
         Some("navigation.waterline.aboveDeck".to_string()),
@@ -93,7 +94,8 @@ fn main() -> Result<!> {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
-                % 10000) as i32 * -1
+                % 10000) as i32
+                * -1
         },
         Duration::from_millis(2000),
         Some("navigation.distanceToWaypoint".to_string()),
@@ -102,15 +104,14 @@ fn main() -> Result<!> {
     server.attach(Box::new(digital_sensor))?;
     dbg!("Attached sensor.");
 
-    let digital_sensor = ConstantSensor::new(42,
+    let digital_sensor = ConstantSensor::new(
+        42,
         Duration::from_millis(5000),
         Some("engine.levels.caffeine"),
     );
 
     server.attach(Box::new(digital_sensor))?;
     dbg!("Attached sensor.");
-
-    
 
     server.run();
 }

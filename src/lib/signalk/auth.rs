@@ -118,7 +118,7 @@ pub(crate) fn get_token(
             Ok(t) => {
                 info!("Success: {}", t);
                 match nvs {
-                    Some(mut n) => match n.set_blob(TOKEN_NAME, t.as_bytes()) {
+                    Some(n) => match n.set_blob(TOKEN_NAME, t.as_bytes()) {
                         Ok(()) => {
                             info!("Successfully stored token");
                         }

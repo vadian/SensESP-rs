@@ -99,10 +99,10 @@ impl SignalKServer<New> {
         let timeout = Duration::from_secs(10);
 
         let url = format!("ws://{}/signalk/v1/stream?subscribe=none", server.hostname);
-        let client = EspWebSocketClient::new(url.as_str(), &config, timeout,  move |event| {
+        let client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
             Self::handle_signalk_server_event("SENDER", event)
         })?;
-        
+
         let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server.hostname);
         let listener = EspWebSocketClient::new(&url, &config, timeout, move |event| {
             Self::handle_signalk_server_event("RECVR", event)
