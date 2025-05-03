@@ -2,6 +2,7 @@ use core::time::Duration;
 
 use anyhow::{Result, anyhow};
 use embedded_svc::{http::client::Client as HttpClient, io::Write, utils::io};
+use esp_idf_svc::http::Method;
 use esp_idf_svc::http::client::EspHttpConnection;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use log::{error, info, warn};
@@ -50,6 +51,21 @@ enum DeviceAccessState {
     PENDING,
 }
 
+#[allow(unused)]
+#[derive(Debug, Deserialize)]
+struct ErrorResponse {
+    error: String,
+    details: IdentityDetails,
+}
+
+#[allow(unused)]
+#[derive(Debug, Deserialize)]
+struct IdentityDetails {
+    device: String,
+    iat: u64,
+    exp: u64,
+}
+
 const TOKEN_NAME: &str = "signalk_token";
 
 pub(crate) fn get_token(
@@ -79,7 +95,7 @@ pub(crate) fn get_token(
     };
     info!("Token: {:?}", token);
 
-    let do_validation = false;
+    let do_validation = true;
 
     let mut client = HttpClient::wrap(EspHttpConnection::new(&Default::default())?);
 
@@ -87,19 +103,7 @@ pub(crate) fn get_token(
         Some(t) => match do_validation {
             false => Some(t),
             true => match validate_token(&mut client, server_root, &t.clone()) {
-                Ok(r) => match r.accessRequest {
-                    Some(a) => match a.permission {
-                        Permission::APPROVED => {
-                            info!("Permission approved - token validated");
-                            Some(t)
-                        }
-                        Permission::DENIED => {
-                            warn!("Permission denied - token NOT valid");
-                            None
-                        }
-                    },
-                    None => None,
-                },
+                Ok(()) => Some(t),
                 Err(e) => {
                     warn!("Error validating token: {}", e);
                     None
@@ -118,7 +122,7 @@ pub(crate) fn get_token(
             Ok(t) => {
                 info!("Success: {}", t);
                 match nvs {
-                    Some(n) => match n.set_blob(TOKEN_NAME, t.as_bytes()) {
+                    Some(mut n) => match n.set_blob(TOKEN_NAME, t.as_bytes()) {
                         Ok(()) => {
                             info!("Successfully stored token");
                         }
@@ -228,9 +232,8 @@ fn post_access_request(
         _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
     };
 
-    let body_string = parse_response_string(response)?;
-
-    let response: DeviceAccessResponse = serde_json::from_str(body_string.as_str())?;
+    let body_string = parse_multipart_response_string(response)?;
+    let response: DeviceAccessResponse = serde_json::from_str(&body_string)?;
 
     Ok(response)
 }
@@ -264,8 +267,9 @@ fn get_access_request_status(
         _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
     };
 
-    let body_string = parse_response_string(response)?;
-    let response: DeviceAccessResponse = serde_json::from_str(body_string.as_str())?;
+    let body_string = parse_multipart_response_string(response)?;
+
+    let response: DeviceAccessResponse = serde_json::from_str(&body_string)?;
 
     Ok(response)
 }
@@ -286,8 +290,8 @@ fn validate_token(
     client: &mut HttpClient<EspHttpConnection>,
     server_root: &str,
     token: &str,
-) -> Result<DeviceAccessResponse> {
-    let url = format!("http://{}/signalk/v1/auth/validate", server_root);
+) -> Result<()> {
+    let url = format!("http://{}/signalk/v1/stream", server_root);
 
     let bearer = format!("Bearer {}", token);
 
@@ -309,11 +313,11 @@ fn validate_token(
 
     // Send request
     let mut request = client
-        .post(&url, &headers)
+        .request(Method::Get, &url, &headers)
         .map_err(|e| anyhow!("Error creating HTTP Request: {:?}", e))?;
     request.write_all(content.as_bytes())?;
     request.flush()?;
-    info!("-> POST {}", url);
+    info!("-> GET {}", url);
 
     let response = request
         .submit()
@@ -324,26 +328,37 @@ fn validate_token(
     info!("<- {}", status);
 
     match status {
-        200 => {
-            info!("Connection pending, status request received");
-            status
+        200 => Err(anyhow!("Connection pending, status request received")),
+        400 => Err(anyhow!("400 error, as yet unknown, code: {}", status)),
+        401 => Err(anyhow!("401 TOKEN INVALID")),
+        404 => Err(anyhow!(
+            "404? I think that's a completed but pending connection"
+        )),
+        426 => {
+            info!("426 UPGRADE REQUIRED. This is the expected response.");
+            Ok(())
         }
-        400 => {
-            info!("400 error, as yet unknown, code: {}", status);
-            400
-        }
-        404 => {
-            info!("404? I think that's a completed but pending connection");
-            404
-        }
-        501 => return Err(anyhow!("Oh no! The server does not support device auth.")),
-        _ => return Err(anyhow!("Oh no! The server returned an unknown status.")),
-    };
+        501 => Err(anyhow!("Oh no! The server does not support device auth.")),
+        _ => Err(anyhow!("Oh no! The server returned an unknown status.")),
+    }
+}
 
+fn parse_multipart_response_string(
+    response: esp_idf_svc::http::client::Response<&mut EspHttpConnection>,
+) -> Result<String> {
     let body_string = parse_response_string(response)?;
-    let response: DeviceAccessResponse = serde_json::from_str(body_string.as_str())?;
+    let body_string = body_string.replace("}{", "}}{{");
+    let body_strings: Vec<_> = body_string.split("}{").collect();
+    if body_strings.len() > 1 {
+        warn!(
+            "Body string split into {} parts, discarding all but last",
+            body_strings.len()
+        );
+    }
+    let body_string = body_strings[body_strings.len() - 1];
 
-    Ok(response)
+    info!("Body string: {}", body_string);
+    Ok(body_string.to_string())
 }
 
 fn parse_response_string(

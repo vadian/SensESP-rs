@@ -10,27 +10,27 @@ rust-version = "1.85"
 name = "sensesp"
 path = "src/lib/lib.rs"
 
-[[bin]]
+[[example]]
 name = "example"
 path = "src/examples/main.rs"
 
-[[bin]]
+[[example]]
 name = "scanner"
 path = "src/examples/scanner.rs"
 
-[[bin]]
+[[example]]
 name = "oled"
 path = "src/examples/ssd1306-oled.rs"
 
-[[bin]]
+[[example]]
 name = "oled-bus"
 path = "src/examples/ssd1306-oled-bus.rs"
 
-[[bin]]
+[[example]]
 name = "signalk"
 path = "src/examples/signalk.rs"
 
-[[bin]]
+[[example]]
 name = "constantsensor"
 path = "src/examples/constant_sensor.rs"
 

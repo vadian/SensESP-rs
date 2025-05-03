@@ -15,10 +15,11 @@ use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use esp_idf_svc::wifi::EspWifi;
 use esp_idf_svc::ws::FrameType;
 use esp_idf_svc::ws::client::{
-    EspWebSocketClient, EspWebSocketClientConfig, WebSocketEvent, WebSocketEventType,
+    EspWebSocketClient, EspWebSocketClientConfig, EspWebSocketTransport, WebSocketEvent,
+    WebSocketEventType,
 };
 use log::{error, info, warn};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use signalk::delta::{V1DeltaFormatBuilder, V1UpdateTypeBuilder};
 use signalk::{SignalKStreamMessage, V1DefSource, V1UpdateValue};
@@ -43,6 +44,17 @@ pub struct Initialized {}
 impl ServerState for Initialized {}
 pub struct Running {}
 impl ServerState for Running {}
+
+#[allow(unused)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignalKServerStatus {
+    name: String,
+    version: String,
+    #[serde(rename = "self")]
+    self_str: String,
+    roles: Vec<String>,
+    timestamp: signalk::definitions::V1DateTime,
+}
 
 pub fn new(config: config::SignalKConnection) -> Result<SignalKServer<New>> {
     let wifi = match config {
@@ -90,10 +102,19 @@ impl SignalKServer<New> {
 
         // Connect websocket
         let config = EspWebSocketClientConfig {
-            crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
-            headers: Some(token.as_str()),
-            task_prio: 1,
+            buffer_size: 16 * 1024, // 16 KB buffer size
+            transport: EspWebSocketTransport::TransportOverTCP,
+            ping_interval_sec: Duration::from_secs(30),
+            pingpong_timeout_sec: Duration::from_secs(10),
+            reconnect_timeout_ms: Duration::from_secs(5),
+            network_timeout_ms: Duration::from_secs(5),
+            keep_alive_idle: Some(Duration::from_secs(60)),
+            keep_alive_interval: Some(Duration::from_secs(10)),
+            keep_alive_count: Some(3),
+            task_prio: 2,
             task_stack: 8192,
+            headers: Some(token.as_str()),
+            crt_bundle_attach: Some(esp_idf_svc::sys::esp_crt_bundle_attach),
             ..Default::default()
         };
         let timeout = Duration::from_secs(10);
@@ -102,6 +123,18 @@ impl SignalKServer<New> {
         let client = EspWebSocketClient::new(url.as_str(), &config, timeout, move |event| {
             Self::handle_signalk_server_event("SENDER", event)
         })?;
+
+        while !client.is_connected() {
+            info!("Waiting for websocket client connection...");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
+        let config = EspWebSocketClientConfig {
+            task_prio: 1,
+            ..config
+        };
+
+        std::thread::sleep(Duration::from_millis(500));
 
         let url = format!("ws://{}/signalk/v1/stream?subscribe=all", server.hostname);
         let listener = EspWebSocketClient::new(&url, &config, timeout, move |event| {
@@ -112,6 +145,8 @@ impl SignalKServer<New> {
             info!("Waiting for websocket client connection...");
             std::thread::sleep(Duration::from_millis(100));
         }
+
+        std::thread::sleep(Duration::from_millis(500));
         let client = Arc::new(Mutex::new(client));
 
         Ok(SignalKServer::<Initialized> {
@@ -221,7 +256,7 @@ impl SignalKServer<Running> {
 impl<T: ServerState> SignalKServer<T> {
     fn handle_signalk_server_event(name: &str, event: &Result<WebSocketEvent, EspIOError>) {
         match event {
-            Ok(event) => match event.event_type {
+            Ok(event) => match &event.event_type {
                 WebSocketEventType::BeforeConnect => {
                     info!("{name}: Websocket before connect");
                 }
@@ -278,13 +313,13 @@ fn create_message<T: std::clone::Clone + Display + Serialize>(
             value: json!(value),
         })
         .build();
-    let msg = SignalKStreamMessage::Delta(
+
+    SignalKStreamMessage::Delta(
         V1DeltaFormatBuilder::default()
             .context("self".to_string())
             .add_update(update)
             .build(),
-    );
-    msg
+    )
 }
 
 async fn send_message(
