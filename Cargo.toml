@@ -31,6 +31,10 @@ name = "signalk"
 path = "src/examples/signalk.rs"
 
 [[example]]
+name = "signalk-listener"
+path = "src/examples/signalk-listener.rs"
+
+[[example]]
 name = "constantsensor"
 path = "src/examples/constant_sensor.rs"
 
