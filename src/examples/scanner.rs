@@ -748,14 +748,10 @@ const I2C_SCANNER_KNOWN_DEVICES: [I2cDeviceInfo; 220] = [
 ];
 
 fn lookup(addr: u8) {
-    for i in 0..I2C_SCANNER_KNOWN_DEVICES.len() {
-        let addresses = I2C_SCANNER_KNOWN_DEVICES[i].2;
-        for j in 0..addresses.len() {
-            if addr == addresses[j] {
-                println!(
-                    "  {}:  {}",
-                    I2C_SCANNER_KNOWN_DEVICES[i].0, I2C_SCANNER_KNOWN_DEVICES[i].1
-                );
+    for addresses in &I2C_SCANNER_KNOWN_DEVICES {
+        for a in addresses.2 {
+            if addr == *a {
+                println!("  {}:  {}", addresses.0, addresses.1);
             }
         }
     }
@@ -810,11 +806,12 @@ fn main() -> Result<()> {
         // in the copied implementation there were two different scans happening here,
         // with one being SMBus.  SMBus is not implemented for esp-idf-hal at this time,
         // so we do what we can
-        if (addr >= 0x30 && addr <= 0x37) || (addr >= 0x50 && addr <= 0x57) {
+        #[allow(clippy::if_same_then_else)] //ignore this, we have this broken out for smbus
+        if (0x30..=0x37).contains(&addr) || (0x50..=0x57).contains(&addr) {
             match i2c.write_read(addr, &[0], &mut buf, 100) {
                 Ok(_) => {
-                    println!("Found Address {:#02x}", addr as u8);
-                    lookup(addr as u8);
+                    println!("Found Address {:#02x}", { addr });
+                    lookup(addr);
                 }
                 Err(_e) => {
                     //log::error!("Error on scan! Addr: {:?} Error: {:?}", &addr, e);
@@ -824,8 +821,8 @@ fn main() -> Result<()> {
         } else {
             match i2c.write_read(addr, &[0], &mut buf, 100) {
                 Ok(_) => {
-                    println!("Found Address {:#02x}", addr as u8);
-                    lookup(addr as u8);
+                    println!("Found Address {:#02x}", { addr });
+                    lookup(addr);
                 }
                 Err(_e) => {
                     //log::error!("Error on scan! Addr: {:?} Error: {:?}", &addr, e);
@@ -835,5 +832,5 @@ fn main() -> Result<()> {
         }
     }
 
-    return Result::Ok(());
+    Result::Ok(())
 }

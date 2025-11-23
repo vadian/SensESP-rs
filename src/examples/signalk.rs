@@ -5,7 +5,6 @@ use anyhow::Result;
 use esp_idf_hal::prelude::Peripherals;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
 use log::{error, info};
-use rand::{prelude::*, TryRngCore};
 use sensesp::{
     sensor::TimedSensor,
     signalk::{
@@ -13,7 +12,7 @@ use sensesp::{
         config::{SignalKConnection, SignalKServerDetails},
     },
 };
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use toml_cfg::toml_config;
 
 #[derive(Debug)]
@@ -65,7 +64,7 @@ fn main() -> Result<!> {
 
     let details = SignalKServerDetails {
         hostname: app_config.server_root.to_string(),
-        sensor_name: None,
+        sensor_name: "Waterline Height over Deck Sensor".to_string().into(),
     };
 
     let server = signalk::new(config)?;
@@ -73,19 +72,44 @@ fn main() -> Result<!> {
     let mut server = server.init(&details, nvs)?;
     dbg!("Initialized server.");
 
+    // let digital_sensor = TimedSensor::new(
+    //     move || {
+    //         (std::time::SystemTime::now()
+    //             .duration_since(std::time::UNIX_EPOCH)
+    //             .unwrap()
+    //             .as_secs()
+    //             % 100) as i32
+    //             - 50
+    //     },
+    //     Duration::from_millis(500),
+    //     Some("navigation.waterline.aboveDeck".to_string()),
+    // );
+
+    // server.attach(Box::new(digital_sensor))?;
+    // dbg!("Attached sensor.");
+
     let digital_sensor = TimedSensor::new(
-         move || {
-            std::time::SystemTime::now()
+        move || {
+            -((std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
-                % 100
+                % 10000) as i32)
         },
-        Duration::from_millis(500),
-        Some("navigation.velocityMadeGood".to_string()),
+        Duration::from_millis(2000),
+        Some("navigation.speedOverGround".to_string()),
     );
-    dbg!("Connected.");
-    server.attach(Box::new(digital_sensor));
+
+    // server.attach(Box::new(digital_sensor))?;
+    // dbg!("Attached sensor.");
+
+    // let digital_sensor = ConstantSensor::new(
+    //     42,
+    //     Duration::from_millis(5000),
+    //     Some("engine.levels.caffeine"),
+    // );
+
+    server.attach(Box::new(digital_sensor))?;
     dbg!("Attached sensor.");
 
     server.run();

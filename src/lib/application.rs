@@ -4,6 +4,12 @@ pub struct Application {
     sensors: Vec<Box<dyn SensESPSensor>>,
 }
 
+impl Default for Application {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Application {
     pub fn new() -> Self {
         Application {
