@@ -39,25 +39,26 @@ fn main() -> Result<()> {
         .register(constant_sensor)
         .register(digital_sensor);
 
-    let mut last_constant_value = constant_subscriber.get();
-    let mut last_digital_value = digital_subscriber.get();
-
-    let _handle = std::thread::spawn(move || {
-        loop {
-            let current_constant = constant_subscriber.get();
-            if current_constant != last_constant_value {
-                log::info!("New constant value found: {}", current_constant);
-                last_constant_value = current_constant;
+    let _constant_handle = std::thread::spawn(move || {
+        esp_idf_hal::task::block_on(async move {
+            let mut subscriber = constant_subscriber;
+            loop {
+                if let Some(v) = subscriber.next().await {
+                    log::info!("New constant value found: {}", v);
+                }
             }
+        });
+    });
 
-            let current_digital = digital_subscriber.get();
-            if current_digital != last_digital_value {
-                log::info!("New digital value found: {}", current_digital);
-                last_digital_value = current_digital;
+    let _digital_handle = std::thread::spawn(move || {
+        esp_idf_hal::task::block_on(async move {
+            let mut subscriber = digital_subscriber;
+            loop {
+                if let Some(v) = subscriber.next().await {
+                    log::info!("New digital value found: {}", v);
+                }
             }
-
-            std::thread::sleep(Duration::from_millis(100));
-        }
+        });
     });
 
     loop {

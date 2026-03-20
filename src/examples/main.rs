@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
+use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use log::info;
-use sensesp::rgbled::{RGB8, WS2812RMT};
 use sensesp::wifi::wifi;
 use toml_cfg::toml_config;
 

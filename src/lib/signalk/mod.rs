@@ -1,5 +1,6 @@
 use core::str;
 use core::time::Duration;
+use std::convert::Infallible;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
@@ -53,10 +54,6 @@ impl<T: Copy + Default> SensorSubcriber<T> {
             last_value: Default::default(),
         }
     }
-
-    // pub fn poll_next(&mut self) -> Result<Option<T>, EspIOError> {
-    //     self.subscriber.poll_next()
-    // }
 }
 impl<T> ValueGetter<T> for SensorSubcriber<T>
 where
@@ -146,11 +143,11 @@ impl SignalKServer<Initialized> {
     ) -> &mut SignalKServer<Initialized> {
         let mut attachable = sensor.attach();
         let name = sensor.name();
-        let mut device_name = self
+        let device_name = self
             .device_name
             .clone()
             .unwrap_or("Basic SensESP-rs Sensor example".to_string());
-        let mut ws = if let Some(ws) = &self.ws {
+        let ws = if let Some(ws) = &self.ws {
             Some(ws.clone())
         } else {
             warn!("No websocket client available when attaching.");
@@ -247,21 +244,15 @@ impl SignalKServer<Running> {
         for sensor in &mut self.sensors {
             sensor.tick();
         }
-        // for subscriber in &mut self.subscribers {
-        //     match subscriber.poll_next() {
-        //         Ok(val) => match val {
-        //             Some(i) => info!("New value found: {}", i),
-        //             None => warn!("No new value found."),
-        //         },
-        //         Err(e) => error!("Error polling subscriber: {:?}", e),
-        //     }
-        // }
         self
     }
 }
 
 impl<T: ServerState> SignalKServer<T> {
-    pub fn signalk_server(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<!> {
+    pub fn signalk_server(
+        server_root: &str,
+        nvs: Option<EspNvs<NvsDefault>>,
+    ) -> Result<Infallible> {
         //get info from signalk api
         let token = get_token(server_root, nvs)?;
 

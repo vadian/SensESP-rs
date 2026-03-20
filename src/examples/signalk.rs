@@ -1,6 +1,3 @@
-#![feature(local_waker)]
-#![feature(never_type)]
-
 use anyhow::Result;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
@@ -12,6 +9,7 @@ use sensesp::{
         config::{SignalKConnection, SignalKServerDetails},
     },
 };
+use std::convert::Infallible;
 use std::time::Duration;
 use toml_cfg::toml_config;
 
@@ -26,7 +24,7 @@ pub struct Config {
     server_root: &'static str,
 }
 
-fn main() -> Result<!> {
+fn main() -> Result<Infallible> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_svc::sys::link_patches();

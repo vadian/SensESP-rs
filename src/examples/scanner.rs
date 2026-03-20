@@ -1,6 +1,5 @@
 use anyhow::Result;
-use embedded_hal::digital::OutputPin;
-use embedded_hal::digital::PinState;
+use embedded_hal::digital::{OutputPin, PinState};
 use esp_idf_hal::gpio::PinDriver;
 use esp_idf_hal::peripherals::Peripherals;
 use toml_cfg::toml_config;
@@ -748,15 +747,9 @@ const I2C_SCANNER_KNOWN_DEVICES: [I2cDeviceInfo; 220] = [
 ];
 
 fn lookup(addr: u8) {
-    for i in 0..I2C_SCANNER_KNOWN_DEVICES.len() {
-        let addresses = I2C_SCANNER_KNOWN_DEVICES[i].2;
-        for j in 0..addresses.len() {
-            if addr == addresses[j] {
-                println!(
-                    "  {}:  {}",
-                    I2C_SCANNER_KNOWN_DEVICES[i].0, I2C_SCANNER_KNOWN_DEVICES[i].1
-                );
-            }
+    for (name, description, addresses) in &I2C_SCANNER_KNOWN_DEVICES {
+        if addresses.contains(&addr) {
+            println!("  {}:  {}", name, description);
         }
     }
 }
@@ -790,11 +783,15 @@ fn main() -> Result<()> {
     log::info!("Preparing to initialize...");
     led.set_low()?;
 
-    let config = config::Config::default();
+    let config = config::Config::new().baudrate(400_000.into());
     log::info!("{:?}", &config);
 
     // Initialize I2C driver
-    let mut i2c = I2cDriver::new(peripherals.i2c1, sda, scl, &config)?;
+    log::info!(">>> About to create I2cDriver");
+    let mut i2c = I2cDriver::new(peripherals.i2c1, sda, scl, &config).inspect_err(|&e| {
+        log::error!("{e}");
+    })?;
+    log::info!(">>> I2cDriver created, starting scan");
 
     for addr in 0..=127 {
         let mut buf = [0; 32];
@@ -835,5 +832,6 @@ fn main() -> Result<()> {
         }
     }
 
+    log::info!(">>> Scan complete");
     Result::Ok(())
 }
