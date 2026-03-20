@@ -1,12 +1,6 @@
-use esp_idf_hal::modem::Modem;
-
 pub enum SignalKConnection {
     ExistingWifi,
-    WifiPsk {
-        ssid: String,
-        password: String,
-        modem: Modem,
-    },
+    WifiPsk { ssid: String, password: String },
     AccessPointConfigurable, //todo
 }
 

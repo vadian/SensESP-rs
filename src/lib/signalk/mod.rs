@@ -10,6 +10,7 @@ use crate::signalk::auth::get_token;
 use crate::wifi::wifi;
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use esp_idf_svc::wifi::EspWifi;
@@ -18,12 +19,10 @@ use esp_idf_svc::ws::client::{
 };
 use eyeball::Subscriber;
 use log::{error, info, warn};
-use mpu6050::device;
 use serde::Serialize;
 use serde_json::json;
 use signalk::delta::{V1DeltaFormatBuilder, V1UpdateTypeBuilder};
 use signalk::{SignalKStreamMessage, V1DefSource, V1UpdateValue};
-use smol::lock::MutexGuardArc;
 
 pub mod auth;
 pub mod config;
@@ -76,14 +75,10 @@ impl ServerState for Initialized {}
 pub struct Running {}
 impl ServerState for Running {}
 
-pub fn new(config: config::SignalKConnection) -> Result<SignalKServer<New>> {
+pub fn new(config: config::SignalKConnection, modem: Modem<'static>) -> Result<SignalKServer<New>> {
     let wifi = match config {
         config::SignalKConnection::ExistingWifi => None::<Box<EspWifi<'static>>>,
-        config::SignalKConnection::WifiPsk {
-            ssid,
-            password,
-            modem,
-        } => {
+        config::SignalKConnection::WifiPsk { ssid, password } => {
             let sys_loop = EspSystemEventLoop::take()?;
 
             // Connect to the Wi-Fi network

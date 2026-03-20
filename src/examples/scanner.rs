@@ -2,11 +2,11 @@ use anyhow::Result;
 use embedded_hal::digital::OutputPin;
 use embedded_hal::digital::PinState;
 use esp_idf_hal::gpio::PinDriver;
-use esp_idf_svc::hal::prelude::Peripherals;
+use esp_idf_hal::peripherals::Peripherals;
 use toml_cfg::toml_config;
 
-use esp_idf_svc::hal::i2c::I2cDriver;
-use esp_idf_svc::hal::i2c::config;
+use esp_idf_hal::i2c::I2cDriver;
+use esp_idf_hal::i2c::config;
 
 type I2cDeviceInfo = (&'static str, &'static str, &'static [u8]);
 
@@ -810,11 +810,11 @@ fn main() -> Result<()> {
         // in the copied implementation there were two different scans happening here,
         // with one being SMBus.  SMBus is not implemented for esp-idf-hal at this time,
         // so we do what we can
-        if (addr >= 0x30 && addr <= 0x37) || (addr >= 0x50 && addr <= 0x57) {
+        if (0x30..=0x37).contains(&addr) || (0x50..=0x57).contains(&addr) {
             match i2c.write_read(addr, &[0], &mut buf, 100) {
                 Ok(_) => {
-                    println!("Found Address {:#02x}", addr as u8);
-                    lookup(addr as u8);
+                    println!("Found Address {:#02x}", { addr });
+                    lookup(addr);
                 }
                 Err(_e) => {
                     //log::error!("Error on scan! Addr: {:?} Error: {:?}", &addr, e);
@@ -824,8 +824,8 @@ fn main() -> Result<()> {
         } else {
             match i2c.write_read(addr, &[0], &mut buf, 100) {
                 Ok(_) => {
-                    println!("Found Address {:#02x}", addr as u8);
-                    lookup(addr as u8);
+                    println!("Found Address {:#02x}", { addr });
+                    lookup(addr);
                 }
                 Err(_e) => {
                     //log::error!("Error on scan! Addr: {:?} Error: {:?}", &addr, e);
@@ -835,5 +835,5 @@ fn main() -> Result<()> {
         }
     }
 
-    return Result::Ok(());
+    Result::Ok(())
 }

@@ -1,9 +1,7 @@
 use anyhow::Result;
 use core::time::Duration;
-use esp_idf_svc::hal::{
-    gpio::OutputPin,
-    peripheral::Peripheral,
-    rmt::{FixedLengthSignal, PinState, Pulse, RmtChannel, TxRmtDriver, config::TransmitConfig},
+use esp_idf_hal::rmt::{
+    FixedLengthSignal, PinState, Pulse, RmtChannel, TxRmtDriver, config::TransmitConfig,
 };
 
 pub use rgb::RGB8;
@@ -13,9 +11,9 @@ pub struct WS2812RMT<'a> {
 
 impl<'d> WS2812RMT<'d> {
     // Rust ESP Board gpio2,  ESP32-C3-DevKitC-02 gpio8
-    pub fn new(
-        led: impl Peripheral<P = impl OutputPin> + 'd,
-        channel: impl Peripheral<P = impl RmtChannel> + 'd,
+    pub fn new<C: RmtChannel + 'd>(
+        led: esp_idf_hal::gpio::AnyOutputPin<'d>,
+        channel: C,
     ) -> Result<Self> {
         let config = TransmitConfig::new().clock_divider(2);
         let tx = TxRmtDriver::new(channel, led, &config)?;
