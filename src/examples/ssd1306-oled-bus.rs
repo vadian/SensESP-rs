@@ -1,13 +1,13 @@
 use anyhow::{Result, bail};
 use esp_idf_hal::gpio::PinDriver;
+use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::hal::prelude::Peripherals;
 use sensesp::i2c::I2CDisplayInterface;
 use sensesp::wifi::wifi;
 use toml_cfg::toml_config;
 
-use esp_idf_svc::hal::i2c::I2cDriver;
-use esp_idf_svc::hal::i2c::config;
+use esp_idf_hal::i2c::I2cDriver;
+use esp_idf_hal::i2c::config;
 
 use core::cell::RefCell;
 use embedded_hal_bus::i2c as i2c_bus;

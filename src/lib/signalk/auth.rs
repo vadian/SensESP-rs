@@ -1,7 +1,8 @@
 use core::time::Duration;
 
 use anyhow::{Result, anyhow};
-use embedded_svc::{http::client::Client as HttpClient, io::Write, utils::io};
+use embedded_io::Read;
+use embedded_svc::{http::client::Client as HttpClient, io::Write};
 use esp_idf_svc::http::client::EspHttpConnection;
 use esp_idf_svc::nvs::{EspNvs, NvsDefault};
 use log::{error, info, warn};
@@ -54,7 +55,7 @@ const TOKEN_NAME: &str = "signalk_token";
 pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> Result<String> {
     let mut buf = [0u8; 1024];
     let token = match nvs {
-        Some(ref n) => match n.get_blob(&TOKEN_NAME, &mut buf) {
+        Some(ref n) => match n.get_blob(TOKEN_NAME, &mut buf) {
             Ok(b) => match b {
                 Some(u) => match String::from_utf8(u.to_vec()) {
                     Ok(s) => Some(s),
@@ -113,7 +114,7 @@ pub(crate) fn get_token(server_root: &str, nvs: Option<EspNvs<NvsDefault>>) -> R
             Ok(t) => {
                 info!("Success: {}", t);
                 match nvs {
-                    Some(mut n) => match n.set_blob(&TOKEN_NAME, t.as_bytes()) {
+                    Some(n) => match n.set_blob(TOKEN_NAME, t.as_bytes()) {
                         Ok(()) => {
                             info!("Successfully stored token");
                         }
@@ -317,9 +318,21 @@ fn parse_response_string(
     mut response: esp_idf_svc::http::client::Response<&mut EspHttpConnection>,
 ) -> Result<String> {
     let mut buf = [0u8; 1024];
-    let bytes_read = io::try_read_full(&mut response, &mut buf).map_err(|e| e.0)?;
-    info!("Read {} bytes", bytes_read);
-    let body_string = match std::str::from_utf8(&buf[0..bytes_read]) {
+    let mut total_bytes = 0;
+    loop {
+        match response.read(&mut buf[total_bytes..]) {
+            Ok(0) => break,
+            Ok(n) => {
+                total_bytes += n;
+                if total_bytes >= buf.len() {
+                    break;
+                }
+            }
+            Err(e) => return Err(anyhow!("Error reading response: {:?}", e)),
+        }
+    }
+    info!("Read {} bytes", total_bytes);
+    let body_string = match std::str::from_utf8(&buf[0..total_bytes]) {
         Ok(body_string) => {
             info!(
                 "Response body (truncated to {} bytes): {:?}",
@@ -334,5 +347,5 @@ fn parse_response_string(
         }
     };
 
-    return Ok(String::from(body_string));
+    Ok(String::from(body_string))
 }
