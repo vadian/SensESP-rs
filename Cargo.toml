@@ -42,13 +42,17 @@ debug = true    # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
 
 [features]
-default = ["std", "esp-idf-svc/native"]
+default = ["std", "esp-idf-svc/native", "led-simple"]
 pio = ["esp-idf-svc/pio"]
 std = ["alloc", "esp-idf-svc/binstart", "esp-idf-svc/std"]
 alloc = ["esp-idf-svc/alloc"]
 nightly = ["esp-idf-svc/nightly"]
 experimental = ["esp-idf-svc/experimental"]
 embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-svc/embassy-time-driver"]
+
+# Board LED selection (pick one)
+led-simple = []       # ESP32 DevKit v1.0: Simple LED on GPIO2
+led-ws2812 = []       # FireBeetle ESP32-E: WS2812 RGB LED on GPIO5
 
 [dependencies]
 anyhow      = "1.0.93"

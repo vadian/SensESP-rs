@@ -154,50 +154,55 @@ impl SignalKServer<Initialized> {
             None
         };
 
-        let thread = std::thread::spawn(move || {
-            // Use a runtime to execute the async block
-            esp_idf_hal::task::block_on(async move {
-                loop {
-                    match attachable.next().await {
-                        Some(v) => {
-                            info!("New value found: {}", v);
-                            if let Some(ws) = &ws {
-                                let mut client = ws.lock().unwrap();
+        let thread = std::thread::Builder::new()
+            .stack_size(8 * 1024) // 8KB stack for async + WebSocket + JSON
+            .spawn(move || {
+                // Use a runtime to execute the async block
+                esp_idf_hal::task::block_on(async move {
+                    loop {
+                        match attachable.next().await {
+                            Some(v) => {
+                                info!("New value found: {}", v);
+                                if let Some(ws) = &ws {
+                                    let mut client = ws.lock().unwrap();
 
-                                let update = V1UpdateTypeBuilder::default()
-                                    .source(
-                                        V1DefSource::builder().label(device_name.clone()).build(),
-                                    )
-                                    .add_update(V1UpdateValue {
-                                        path: name.clone(),
-                                        value: json!(v),
-                                    })
-                                    .build();
-                                let msg = SignalKStreamMessage::Delta(
-                                    V1DeltaFormatBuilder::default()
-                                        .context("self".to_string())
-                                        .add_update(update)
-                                        .build(),
-                                );
+                                    let update = V1UpdateTypeBuilder::default()
+                                        .source(
+                                            V1DefSource::builder()
+                                                .label(device_name.clone())
+                                                .build(),
+                                        )
+                                        .add_update(V1UpdateValue {
+                                            path: name.clone(),
+                                            value: json!(v),
+                                        })
+                                        .build();
+                                    let msg = SignalKStreamMessage::Delta(
+                                        V1DeltaFormatBuilder::default()
+                                            .context("self".to_string())
+                                            .add_update(update)
+                                            .build(),
+                                    );
 
-                                match client.send(
-                                    esp_idf_svc::ws::FrameType::Text(false),
-                                    serde_json::to_string(&msg)
-                                        .unwrap_or("SerializationFail".to_string())
-                                        .as_bytes(),
-                                ) {
-                                    Ok(()) => info!("Successfully sent delta."),
-                                    Err(e) => error!("Error sending delta: {:?}", e),
+                                    match client.send(
+                                        esp_idf_svc::ws::FrameType::Text(false),
+                                        serde_json::to_string(&msg)
+                                            .unwrap_or("SerializationFail".to_string())
+                                            .as_bytes(),
+                                    ) {
+                                        Ok(()) => info!("Successfully sent delta."),
+                                        Err(e) => error!("Error sending delta: {:?}", e),
+                                    }
+                                } else {
+                                    warn!("No websocket client available.");
                                 }
-                            } else {
-                                warn!("No websocket client available.");
                             }
-                        }
-                        None => warn!("No new value found."),
-                    };
-                }
-            });
-        });
+                            None => warn!("No new value found."),
+                        };
+                    }
+                });
+            })
+            .expect("Failed to spawn sensor thread");
 
         self.subscribers.push(thread);
 
